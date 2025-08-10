@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
-import Smarthouse from './Smarthouse';
+import Smarthouse from './Smarthouse'
 import Builder from './Builder';
 import RobotSmall from './RobotSmall';
 import SrobotBuilder from './SrobotBuilder';

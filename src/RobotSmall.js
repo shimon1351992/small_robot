@@ -311,33 +311,47 @@ const [showTextEditor, setShowTextEditor] = useState(false);
     }
   };
   
- const openBuilderInNewTab = () => {
-  // קרא את ה־JSON של ה־toolbox
-  fetch('/toolbox.json')
-    .then(response => response.json())
-    .then(data => {
-      console.log("Toolbox data loaded:", data); // בדיקה
+const openBuilderInNewTab = async () => {
+  try {
+    const response = await fetch(process.env.PUBLIC_URL + '/toolbox.json');
 
-      // כאן אתה יכול להעביר את הנתונים לקישור או לשמור ב־localStorage זמני לפני הפתיחה
-      // אפשר גם להעביר אותו ב־query param במקרה של יצירת URL עם JSON BASE64 מוודא שזה נראה כך:
-      
-      const toolboxParam = encodeURIComponent(JSON.stringify(data)); // קודוד את ה־json במידה ותעביר כ־query
-      const url = `/SrobotBuilder?toolbox=${toolboxParam}`;
-      console.log("Generated URL:", url); // בדיקה
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+      alert(new Error(`HTTP error! status: ${response.status}`))
+    }
 
-      // יצירת קישור דינמי חדש
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank'; // פתיחה בטאב חדש
-      link.style.display = 'none'; // הסתרת הקישור
+    const data = await response.json();
+    console.log("Toolbox data loaded:", data);
 
-      // הוספת הקישור לגוף המסמך והפעלתו
-      document.body.appendChild(link);
-      link.click();
+    const toolboxParam = encodeURIComponent(JSON.stringify(data));
+    const url = `/SrobotBuilder?toolboxrobot=${toolboxParam}`;
+    console.log("Generated URL:", url);
 
-      // הסרת הקישור מגוף המסמך
-      document.body.removeChild(link);
-    });
+    // Pause for a short amount of time
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.style.display = 'none';
+        // Pause for a short amount of time
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+    document.body.appendChild(link);
+            // Pause for a short amount of time
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+    link.click();
+                // Pause for a short amount of time
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+    document.body.removeChild(link);
+                    // Pause for a short amount of time
+        await new Promise(resolve => setTimeout(resolve, 50));
+  } catch (error) {
+    console.error("Fetch error:", error);
+    alert("Failed to load toolbox configuration. Check the console for details.");
+  }
 };
 
    return (
