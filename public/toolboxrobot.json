@@ -1,0 +1,105 @@
+{
+  "kind": "categoryToolbox",
+  "contents": [
+    {
+      "kind": "category",
+      "name": "בקרה",
+      "contents": [
+        { "kind": "block", "type": "controls_if" },
+        { "kind": "block", "type": "controls_if_else" },
+        { "kind": "block", "type": "logic_compare" },
+        { "kind": "block", "type": "boolean_true" },
+        { "kind": "block", "type": "boolean_false" },
+        { "kind": "block", "type": "logic_compare_custom" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "לולאות",
+      "contents": [
+        { "kind": "block", "type": "controls_repeat_ext" },
+        { "kind": "block", "type": "infinite_loop" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "פעולות מתמטיות",
+      "contents": [
+        { "kind": "block", "type": "math_number" },
+        { "kind": "block", "type": "math_arithmetic" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "טקסט",
+      "contents": [
+        { "kind": "block", "type": "text" },
+        { "kind": "block", "type": "text_print" },
+        { "kind": "block", "type": "double_quoted_text" },
+        { "kind": "block", "type": "int_to_string" }
+      ]
+    },
+   
+{
+  "kind": "category",
+  "name": "רובוט",
+  "contents": [
+   
+  { "kind": "block", "type": "car_move" },
+  { "kind": "block", "type": "check_results_value" },
+  { "kind": "block", "type": "check_button_4" },
+  { "kind": "block", "type": "check_button_6" },
+  { "kind": "block", "type": "check_button_8" },
+  { "kind": "block", "type": "check_button_5" },
+   { "kind": "block", "type": "check_forward_arrow" },
+    { "kind": "block", "type": "check_back_arrow" },
+    { "kind": "block", "type": "increase_speed" },
+     { "kind": "block", "type": "decrease_speed" },
+     { "kind": "block", "type": "display_matrix_image" }, 
+ { "kind": "block", "type": "set_variable_speed_left" },
+ { "kind": "block", "type": "set_variable_speed_right" },
+  { "kind": "block", "type": "get_variable_speed_right" },
+   { "kind": "block", "type": "get_variable_speed_left" },
+  { "kind": "block", "type": "set_current_direction" },
+ { "kind": "block", "type": "robot_code_block" }
+    
+    
+    
+  ]
+},
+ 
+    {
+      "kind": "category",
+      "name": "משתנים",
+      "contents": [
+        { "kind": "block", "type": "variables_create" },
+        { "kind": "block", "type": "set_param" },
+        { "kind": "block", "type": "get_param" }
+      ]
+    },
+ 
+    {
+      "kind": "category",
+      "name": "פונקציות",
+      "contents": [
+        { "kind": "block", "type": "function_definition_noreturn" },
+        { "kind": "block", "type": "function_call" },
+        { "kind": "block", "type": "function_return" },
+        { "kind": "block", "type": "motion_sensor_function" },
+        { "kind": "block", "type": "light_sensor_function" },
+        { "kind": "block", "type": "open_door_function" },
+        { "kind": "block", "type": "open_window_function" },
+        { "kind": "block", "type": "motion_sensor_function" },
+        { "kind": "block", "type": "gass_function" },
+        { "kind": "block", "type": "temp_function" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "Firebase",
+      "contents": [
+        { "kind": "block", "type": "datalink_input" }
+      ]
+    }
+  ]
+}

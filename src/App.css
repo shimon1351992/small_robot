@@ -1,0 +1,59 @@
+/* הגדרות כלליות ל־.App */
+.App {
+  text-align: center;
+  overflow-y: auto;       /* מאפשר גלילה אופקית/אנכית לפי הצורך */
+  height: 100vh;          /* באופן זה, ה־div תופס את כל גובה המסך */
+  overflow-x: hidden;     /* במידת הצורך, מונע גלילה אופקית */
+  display: flex;          /* מאפשר מיקום אלמנטים בפונקציה של flex */
+  flex-direction: column;
+}
+
+/* שאר ההגדרות שלך, מותאמות גם ל־monaco-editor ולשאר הרכיבים */
+.monaco-editor .monaco-editor-background {
+  direction: ltr !important;
+}
+
+.monaco-editor {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+.monaco-editor .mtk {
+  text-align: left !important;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;   /* שווה ל־height: 100vh; כדי לא להפריע לגלילה */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+/* שאר הסגנונות שלך... */
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

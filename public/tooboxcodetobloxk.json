@@ -1,0 +1,32 @@
+{
+  "categories": {
+    "MyCategory": {
+      "blocks": {
+        "double_quoted_text": {
+          "type": "double_quoted_text",
+          "tooltip": "הכנס טקסט שיופיע בתוך גרשיים כפולות",
+          "colour": 160,
+          "output": "String",
+          "inputs": [
+            {
+              "type": "dummy_input",
+              "name": "TEXT",
+              "fields": [
+                {
+                  "type": "field_label",
+                  "text": "טקסט:"
+                },
+                {
+                  "type": "field_input",
+                  "class": "BlocklyFieldTextInput",
+                  "text": ""
+                }
+              ]
+            }
+          ],
+          "code": "function(block) { var text = block.getFieldValue('TEXT'); var code = `\"${text}\"`; return [code, javascriptGenerator.ORDER_ATOMIC]; }"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+/* BlocklyBuilder.css */
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.react-flow__renderer {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* הסתרת ה-handles הדיפולטיביים של React Flow כדי שנשלוט בעיצוב שלהם */
+.react-flow__handle {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  pointer-events: all; /* מאפשר לחיצה על האזור הנסתר של ה-handle */
+}
+
+/* סגנונות כלליים לצמתים (בלוקים) בתוך React Flow */
+.react-flow__node {
+  transition: transform 0.2s ease-out;
+  overflow: visible !important; /* חשוב מאוד שה-SVG לא ייחתך */
+  background: none !important; /* וודא שהרקע לא מגיע מה-node */
+  border: none !important; /* וודא שהגבולות לא מגיעים מה-node */
+  padding: 0 !important;
+  /* וודא שגרירה קלה יותר על הבלוק עצמו */
+  cursor: grab;
+}
+
+/* סגנון לבלוק כאשר הוא נגרר */
+.react-flow__node.react-flow__node-dragging {
+  transform: scale(1.05); /* הגדל מעט כשנגרר */
+}
+
+/* סגנון לקצוות (חיבורים) - אלה הקווים שנוצרים אוטומטית */
+.react-flow__edge-path {
+  stroke-width: 2px;
+  stroke: #555; /* צבע אפור כהה יותר */
+}
+
+/* סגנון לקצוות שנבחרו */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #1976d2; /* כחול עמוק */
+  stroke-width: 3px;
+}
+
+/* סגנון ל-MiniMap */
+.react-flow__minimap {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* סגנון לבקרים (Controls) */
+.react-flow__controls {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  padding: 5px;
+}
+
+.react-flow__controls-button {
+  background: #e0e0e0;
+  border-radius: 4px;
+  margin: 2px;
+  transition: background-color 0.2s;
+}
+
+.react-flow__controls-button:hover {
+  background: #c0c0c0;
+}

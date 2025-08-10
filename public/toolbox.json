@@ -1,0 +1,149 @@
+{
+  "kind": "categoryToolbox",
+  "contents": [
+    {
+      "kind": "category",
+      "name": "בקרה",
+      "contents": [
+        { "kind": "block", "type": "controls_if" },
+        { "kind": "block", "type": "controls_if_else" },
+        { "kind": "block", "type": "logic_compare" },
+        { "kind": "block", "type": "boolean_true" },
+        { "kind": "block", "type": "boolean_false" },
+        { "kind": "block", "type": "logic_compare_custom" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "לולאות",
+      "contents": [
+        { "kind": "block", "type": "controls_repeat_ext" },
+        { "kind": "block", "type": "infinite_loop" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "פעולות מתמטיות",
+      "contents": [
+        { "kind": "block", "type": "math_number" },
+        { "kind": "block", "type": "math_arithmetic" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "טקסט",
+      "contents": [
+        { "kind": "block", "type": "text" },
+        { "kind": "block", "type": "text_print" },
+        { "kind": "block", "type": "double_quoted_text" },
+        { "kind": "block", "type": "int_to_string" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "בית חכם",
+      "contents": [
+        { "kind": "block", "type": "motion_sensor_function" },
+        { "kind": "block", "type": "light_sensor_function" },
+        { "kind": "block", "type": "open_door_function" },
+        { "kind": "block", "type": "open_window_function" },
+        { "kind": "block", "type": "motion_sensor_function" },
+        { "kind": "block", "type": "gass_function" },
+        { "kind": "block", "type": "temp_function" },
+        { "kind": "block", "type": "activate_alarm_function" },
+        { "kind": "block", "type": "call_gass_function" },
+        { "kind": "block", "type": "call_motion_sensor_function" },
+        { "kind": "block", "type": "call_light_sensor_function" },
+        { "kind": "block", "type": "call_temp_function" },
+        { "kind": "block", "type": "call_activate_alarm_function" },
+        { "kind": "block", "type": "call_open_window_function" },
+        { "kind": "block", "type": "call_open_door_function" },
+        { "kind": "block", "type": "infinite_loop" },
+        { "kind": "block", "type": "delay_seconds" },
+        { "kind": "block", "type": "lcd_display_text" },
+        { "kind": "block", "type": "lcd_clear" },
+        { "kind": "block", "type": "lcd_set_cursor" },
+        { "kind": "block", "type": "lcd_multi_print" },
+        { "kind": "block", "type": "call_printlcdint" },
+        { "kind": "block", "type": "get_steam_sensor_temperature_with_pin" },
+        { "kind": "block", "type": "get_gas_sensor_value_with_pin" },
+        { "kind": "block", "type": "calculate_lux" },
+        { "kind": "block", "type": "motion_sensore" },
+        { "kind": "block", "type": "fan_sensore" },
+        { "kind": "block", "type": "white_led" },
+        { "kind": "block", "type": "yellow_led" },
+        { "kind": "block", "type": "buzzer_tone" },
+        { "kind": "block", "type": "no_tone" },
+        { "kind": "block", "type": "open_door" },
+        { "kind": "block", "type": "close_door" },
+        { "kind": "block", "type": "open_window" },
+        { "kind": "block", "type": "close_window" },
+        { "kind": "block", "type": "wifi_connect" },
+        { "kind": "block", "type": "firebase_config" },
+        { "kind": "block", "type": "call_getdata" },
+        { "kind": "block", "type": "call_setdata_function" },
+        { "kind": "block", "type": "call_handle_button_presses" },
+        { "kind": "block", "type": "correct_code_entered" }
+      ]
+    },
+     {
+      "kind": "category",
+      "name": "רובוט",
+      "contents": [
+        { "kind": "block", "type": "robot_apply_current_direction" },
+        { "kind": "block", "type": "robot_infinite_loop" } 
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "ESP32",
+      "contents": [
+        { "kind": "block", "type": "esp32_digital_write" },
+        { "kind": "block", "type": "esp32_analog_read" },
+        { "kind": "block", "type": "servo_include_library" },
+        { "kind": "block", "type": "servo_create_object" },
+        { "kind": "block", "type": "servo_attach" },
+        { "kind": "block", "type": "servo_write" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "משתנים",
+      "contents": [
+        { "kind": "block", "type": "variables_create" },
+        { "kind": "block", "type": "set_param" },
+        { "kind": "block", "type": "get_param" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "ארדואינו",
+      "contents": [
+        { "kind": "block", "type": "infinite_loop" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "פונקציות",
+      "contents": [
+        { "kind": "block", "type": "function_definition_noreturn" },
+        { "kind": "block", "type": "function_call" },
+        { "kind": "block", "type": "function_return" },
+        { "kind": "block", "type": "motion_sensor_function" },
+        { "kind": "block", "type": "light_sensor_function" },
+        { "kind": "block", "type": "open_door_function" },
+        { "kind": "block", "type": "open_window_function" },
+        { "kind": "block", "type": "motion_sensor_function" },
+        { "kind": "block", "type": "gass_function" },
+        { "kind": "block", "type": "temp_function" }
+      ]
+    },
+    {
+      "kind": "category",
+      "name": "Firebase",
+      "contents": [
+        { "kind": "block", "type": "datalink_input" }
+      ]
+    }
+  ]
+}
