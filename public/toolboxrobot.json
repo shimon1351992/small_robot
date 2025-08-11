@@ -45,7 +45,6 @@
   "name": "רובוט",
   "contents": [
    
-  { "kind": "block", "type": "car_move" },
   { "kind": "block", "type": "check_results_value" },
   { "kind": "block", "type": "check_button_4" },
   { "kind": "block", "type": "check_button_6" },
@@ -61,7 +60,9 @@
   { "kind": "block", "type": "get_variable_speed_right" },
    { "kind": "block", "type": "get_variable_speed_left" },
   { "kind": "block", "type": "set_current_direction" },
- { "kind": "block", "type": "robot_code_block" }
+ { "kind": "block", "type": "robot_code_block" },
+ { "kind": "block", "type": "car_move_advanced" },
+ { "kind": "block", "type": "initialize_pins" }
     
     
     

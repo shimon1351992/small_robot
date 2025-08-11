@@ -71,18 +71,7 @@ uint8_t matrix_stop2[8]={0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x18};
 // **GLOBAL_VARIABLES**
 
 void setup() {
- pinMode(left_ctrl,OUTPUT);//
-  pinMode(left_pwm,OUTPUT);//
-  pinMode(right_ctrl,OUTPUT);//
-  pinMode(right_pwm,OUTPUT);//
-    Serial.begin(115200);//
-  // In case the interrupt driver crashes on setup, give a clue
-  // to the user what's going on.
-  Serial.println("Enabling IRin");
-  irrecv.enableIRIn(); // Start the receiver
-  Serial.println("Enabled IRin");
-  matrix.begin(0x70); // כתובת I2C ברירת מחדל
-  matrix.clear();
+
 
   // **SETUP_CODE**
 }
@@ -1838,51 +1827,51 @@ javascriptGenerator.forBlock['int_to_string'] = function(block) {
 };
 
 //----------------------------------------------------------------------- בלוקים לרובוט -------------------------------------------------
-Blockly.Blocks['car_move'] = {
-  init: function() {
-    this.appendDummyInput()
-        .appendField("נסיעה")
-        .appendField(new Blockly.FieldDropdown([
-          ["קדימה", "F"],
-          ["אחורה", "B"],
-          ["שמאלה", "L"],
-          ["ימינה", "R"],
-          ["עצור","S"],
-        ]), "DIRECTION");
-    this.appendValueInput("SPEED1")
-        .setCheck("Number")
-        .appendField("מהירות שמאל");
-    this.appendValueInput("SPEED2")
-        .setCheck("Number")
-        .appendField("מהירות ימין");
-    this.setInputsInline(true);
-    this.setPreviousStatement(true);
-    this.setNextStatement(true);
-    this.setColour(210);
-    this.setTooltip("בלוק נסיעה לפי כיוון ומהירויות משתנות");
-    this.setHelpUrl("");
-  }
-};
+// Blockly.Blocks['car_move'] = {
+//   init: function() {
+//     this.appendDummyInput()
+//         .appendField("נסיעה")
+//         .appendField(new Blockly.FieldDropdown([
+//           ["קדימה", "F"],
+//           ["אחורה", "B"],
+//           ["שמאלה", "L"],
+//           ["ימינה", "R"],
+//           ["עצור","S"],
+//         ]), "DIRECTION");
+//     this.appendValueInput("SPEED1")
+//         .setCheck("Number")
+//         .appendField("מהירות שמאל");
+//     this.appendValueInput("SPEED2")
+//         .setCheck("Number")
+//         .appendField("מהירות ימין");
+//     this.setInputsInline(true);
+//     this.setPreviousStatement(true);
+//     this.setNextStatement(true);
+//     this.setColour(210);
+//     this.setTooltip("בלוק נסיעה לפי כיוון ומהירויות משתנות");
+//     this.setHelpUrl("");
+//   }
+// };
 
-javascriptGenerator.forBlock['car_move'] = function(block) {
-  var direction = block.getFieldValue('DIRECTION');
-  var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
-  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+// javascriptGenerator.forBlock['car_move'] = function(block) {
+//   var direction = block.getFieldValue('DIRECTION');
+//   var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+//   var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
 
-  var functionName = '';
-  switch (direction) {
-    case 'F': functionName = 'car_front'; break;
-    case 'B': functionName = 'car_back'; break;
-    case 'L': functionName = 'car_left'; break;
-    case 'R': functionName = 'car_right'; break;
-     case 'S': functionName = 'car_stop'; break;
-    default: functionName = 'car_stop'; break;
-  }
+//   var functionName = '';
+//   switch (direction) {
+//     case 'F': functionName = 'car_front'; break;
+//     case 'B': functionName = 'car_back'; break;
+//     case 'L': functionName = 'car_left'; break;
+//     case 'R': functionName = 'car_right'; break;
+//      case 'S': functionName = 'car_stop'; break;
+//     default: functionName = 'car_stop'; break;
+//   }
 
-  var code = "currentDirection = '" + direction + "';\n";
-  code += functionName + '(' + speed1 + ', ' + speed2 + ');\n';
-  return code;
-};
+//   var code = "currentDirection = '" + direction + "';\n";
+//   code += functionName + '(' + speed1 + ', ' + speed2 + ');\n';
+//   return code;
+// };
 
 // בלוק: בדיקת ערך שווה ל-0xFF9867
 Blockly.Blocks['check_results_value'] = {
@@ -2201,6 +2190,86 @@ javascriptGenerator['robot_code_block'] = function(block) {
   return code;
 };
 
+// הגדרת הבלוק
+Blockly.Blocks['car_move_advanced'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField(" כיוון נסיעה")
+        .appendField(new Blockly.FieldDropdown([
+          ["קדימה", "F"],
+          ["אחורה", "B"],
+          ["שמאלה", "L"],
+          ["ימינה", "R"],
+          ["עצור", "S"]
+        ]), "DIRECTION");
+    this.appendValueInput("SPEED1")
+        .setCheck("Number")
+        .appendField("מהירות שמאל");
+    this.appendValueInput("SPEED2")
+        .setCheck("Number")
+        .appendField("מהירות ימין");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(210);
+    this.setTooltip("בלוק נסיעה מתקדם עם כיוון ומהירויות משתנות");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['car_move_advanced'] = function(block) {
+  var direction = block.getFieldValue('DIRECTION');
+  var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+
+  var functionName = '';
+  switch (direction) {
+    case 'F': functionName = 'car_front'; break;
+    case 'B': functionName = 'car_back'; break;
+    case 'L': functionName = 'car_left'; break;
+    case 'R': functionName = 'car_right'; break;
+    case 'S': functionName = 'car_Stop'; break; // תוקן השם
+    default: functionName = 'car_Stop'; break;
+  }
+
+  var code = "currentDirection = '" + direction + "';\n";
+  code += functionName + '(' + speed1 + ', ' + speed2 + ');\n';
+  return code;
+};
+
+
+// הגדרת הבלוק
+Blockly.Blocks['initialize_pins'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("התחל פורטים");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(190);
+    this.setTooltip("מאגד את כל הפונקציות של הפורטים לפונקציה אחת");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['initialize_pins'] = function(block) {
+  var code = `
+  pinMode(left_ctrl,OUTPUT);//
+  pinMode(left_pwm,OUTPUT);//
+  pinMode(right_ctrl,OUTPUT);//
+  pinMode(right_pwm,OUTPUT);//
+    Serial.begin(115200);//
+  // In case the interrupt driver crashes on setup, give a clue
+  // to the user what's going on.
+  Serial.println("Enabling IRin");
+  irrecv.enableIRIn(); // Start the receiver
+  Serial.println("Enabled IRin");
+  matrix.begin(0x70); // כתובת I2C ברירת מחדל
+  matrix.clear();
+  `;
+  return code;
+};
 
 //====================================================================================================================================
   const resizeBlocklyDiv = () => {
