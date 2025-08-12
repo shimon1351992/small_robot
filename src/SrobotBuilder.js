@@ -2438,6 +2438,35 @@ javascriptGenerator.forBlock['delay_seconds_block'] = function(block) {
   return code;
 };
 
+// הגדרה של הבלוק
+Blockly.Blocks['initialize_variables'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("התחול משתנים");
+    this.setPreviousStatement(true);
+    this.setNextStatement(true);
+    this.setColour(190);
+    this.setTooltip("מאגד את כל הפונקציות של הפורטים לפונקציה אחת");
+    this.setHelpUrl("");
+  }
+};
+javascriptGenerator.forBlock['initialize_variables'] = function() {
+  return `
+pinMode(left_ctrl,OUTPUT);
+pinMode(left_pwm,OUTPUT);
+pinMode(right_ctrl,OUTPUT);
+pinMode(right_pwm,OUTPUT);
+Serial.begin(115200);
+// In case the interrupt driver crashes on setup, give a clue
+// to the user what's going on.
+Serial.println("Enabling IRin");
+irrecv.enableIRIn(); // Start the receiver
+Serial.println("Enabled IRin");
+matrix.begin(0x70); // כתובת I2C ברירת מחדל
+matrix.clear();
+`;
+};
+
 //====================================================================================================================================
   const resizeBlocklyDiv = () => {
     if (blocklyDiv.current && blocklyArea.current && workspace) {
