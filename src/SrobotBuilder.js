@@ -27,6 +27,7 @@ import ReactFlow, { Controls, Background } from 'react-flow-renderer';
 import 'blockly/javascript'; // חייב להיות לפני שאתה מגדיר את הפונקציות
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/database';
+import emailjs from 'emailjs-com';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBM5IhRpefag60Etc6Ewi7OaA9tknkwxFE",
@@ -186,6 +187,7 @@ function SrobotBuilder({ initialXml }) {
   const [filename, setFilename] = useState('arduino_code.ino');
   const saveWorkspaceRef = useRef(null);
   const isInitialMount = useRef(true);
+  const [file, setFile] = useState(null);
    // =======================================================================================================================================4
 
 
@@ -2494,6 +2496,7 @@ javascriptGenerator.forBlock['delay_seconds_block'] = function(block) {
 
   const initializeBlockly = useCallback(async () => {
     try {
+         localStorage.clear();
       if (!toolboxConfiguration) {
         console.warn('Toolbox configuration not loaded yet. Waiting...');
         return;
@@ -2528,21 +2531,28 @@ javascriptGenerator.forBlock['delay_seconds_block'] = function(block) {
 
         generateCodeFromWorkspace(ws); //  קוד התחלתי
 
+        
+      saveWorkspaceRef.current = () => {
+  if (ws) {
+    try {
+      const xml = Blockly.Xml.workspaceToDom(ws);
+      const xmlText = Blockly.Xml.domToText(xml);
+      localStorage.setItem('blocklyWorkspace', xmlText);
+
+      // בנוסף, אפשר לשמור את הקוד שנוצר ל־workspace
+      localStorage.setItem('generatedCode', generatedCode);
+      
+      console.log('Workspace and code saved to localStorage!');
+    } catch (err) {
+      console.error('שגיאה בשמירת ה־workspace או הקוד:', err);
+    }
+  }
+};
+
         ws.addChangeListener(() => {
           generateCodeFromWorkspace(ws);
+          saveWorkspaceRef.current();
         });
-         saveWorkspaceRef.current = () => {
-          if (ws) {
-        try {
-          const xml = Blockly.Xml.workspaceToDom(ws);
-          const xmlText = Blockly.Xml.domToText(xml);
-          localStorage.setItem('blocklyWorkspace', xmlText);
-          console.log('Workspace saved to localStorage!');
-        } catch (err) {
-          console.error('שגיאה בשמירת ה־workspace:', err);
-        }
-      }
-        };
       }
     } catch (error) {
       console.error('שגיאה באתחול Blockly:', error);
@@ -2600,24 +2610,31 @@ javascriptGenerator.forBlock['delay_seconds_block'] = function(block) {
     setIsEditorVisible(!isEditorVisible);
   };
   const saveWorkspaceButtonClick = () => {
-    saveWorkspaceRef.current();
-    alert('Workspace saved!');
+    if (saveWorkspaceRef.current) {
+  saveWorkspaceRef.current();
+   alert('Workspace saved!');
+} else{
+  alert('Workspace NOT saved!'); 
+}
+  }
+  
+  const handleFileChange = (event) => {
+    setFile(event.target.files[0]);
   };
 
-const handleSendWhatsApp = () => {
-  const phoneNumber = '+972504633713'; // שנה כאן למספר הטלפון שאליו אתה רוצה לשלוח
-  const message = encodeURIComponent(`קוד Arduino:\n${generatedCode}`); // מקודד את הקוד
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-  // יצירת הקישור לוואטסאפ
-  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+    const formData = new FormData();
+    formData.append('file', file);
 
-  // פתיחת הקישור בוואטסאפ
-  window.open(whatsappUrl, '_blank');
-
-  // הודעה למשתמש
-  alert('חלון הוואטסאפ שלך אמור להיפתח כעת.');
-};
-
+    try {
+      const result = await emailjs.sendForm('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', event.target, 'YOUR_USER_ID');
+      alert('Email sent successfully!');
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
+  };
   return (
     <div
       style={{
@@ -2731,8 +2748,8 @@ const handleSendWhatsApp = () => {
           שמור Workspace
         </button>
 
-            <button
-      onClick={handleSendWhatsApp} // הוסף את הפונקציה כאן
+            {/* <button
+      onClick={handleSendEmail} // הוסף את הפונקציה כאן
       style={{
         backgroundColor: '#E91E63',
         border: 'none',
@@ -2750,7 +2767,7 @@ const handleSendWhatsApp = () => {
       }}
     >
       שלח קוד במייל
-    </button>
+    </button> */}
       </div>
 
       {isEditorVisible && (
@@ -2770,7 +2787,9 @@ const handleSendWhatsApp = () => {
           style={{ zIndex: 1 }}
         />
       )}
+      
     </div>
+    
   );
 }
 

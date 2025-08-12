@@ -7,8 +7,10 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.11.0",
     "blockly": "^12.2.0",
     "codemirror": "^6.0.2",
+    "emailjs-com": "^3.2.0",
     "env-cmd": "^10.1.0",
     "firebase": "^12.0.0",
     "gh-pages": "^6.3.0",
@@ -35,8 +37,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-   "predeploy": "npm run build",
-   "deploy": "gh-pages -d build"
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [
