@@ -77,15 +77,20 @@ void setup() {
 }
 
 void loop() {
+
+
+ // **LOOP_CODE**
   if (irrecv.decode(&results)) {
 
 
-  // **LOOP_CODE**
+ 
 
 
  irrecv.resume(); // קבלת הפקודה הבאה
     delay(100);
 }
+
+
 
 }
 
@@ -1873,6 +1878,142 @@ javascriptGenerator.forBlock['int_to_string'] = function(block) {
 //   return code;
 // };
 
+
+// בלוק עבור car_front
+Blockly.Blocks['car_front_block'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("סע קדימה");
+    this.appendValueInput("SPEED1")
+        .setCheck("Number")
+        .appendField("מהירות שמאל");
+    this.appendValueInput("SPEED2")
+        .setCheck("Number")
+        .appendField("מהירות ימין");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("סע קדימה עם מהירות משתנה לכל צד");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['car_front_block'] = function(block) {
+  var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var code = 'car_front(' + speed1 + ', ' + speed2 + ');\n';
+  return code;
+};
+
+// בלוק עבור car_back
+Blockly.Blocks['car_back_block'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("סע אחורה");
+    this.appendValueInput("SPEED1")
+        .setCheck("Number")
+        .appendField("מהירות שמאל");
+    this.appendValueInput("SPEED2")
+        .setCheck("Number")
+        .appendField("מהירות ימין");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("סע אחורה עם מהירות משתנה לכל צד");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['car_back_block'] = function(block) {
+  var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var code = 'car_back(' + speed1 + ', ' + speed2 + ');\n';
+  return code;
+};
+
+// בלוק עבור car_left
+Blockly.Blocks['car_left_block'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("פנה שמאלה");
+    this.appendValueInput("SPEED1")
+        .setCheck("Number")
+        .appendField("מהירות שמאל");
+    this.appendValueInput("SPEED2")
+        .setCheck("Number")
+        .appendField("מהירות ימין");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("פנה שמאלה עם מהירות משתנה לכל צד");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['car_left_block'] = function(block) {
+  var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var code = 'car_left(' + speed1 + ', ' + speed2 + ');\n';
+  return code;
+};
+
+// בלוק עבור car_right
+Blockly.Blocks['car_right_block'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("פנה ימינה");
+    this.appendValueInput("SPEED1")
+        .setCheck("Number")
+        .appendField("מהירות שמאל");
+    this.appendValueInput("SPEED2")
+        .setCheck("Number")
+        .appendField("מהירות ימין");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("פנה ימינה עם מהירות משתנה לכל צד");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['car_right_block'] = function(block) {
+  var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var code = 'car_right(' + speed1 + ', ' + speed2 + ');\n';
+  return code;
+};
+
+// בלוק עבור car_Stop
+Blockly.Blocks['car_stop_block'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("עצור");
+     this.appendValueInput("SPEED1")
+        .setCheck("Number")
+        .appendField("מהירות שמאל");
+    this.appendValueInput("SPEED2")
+        .setCheck("Number")
+        .appendField("מהירות ימין");   
+     this.setInputsInline(true);         
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(230);
+    this.setTooltip("עצור את המכונית");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['car_stop_block'] = function(block) {
+    var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var code = 'car_Stop(' + speed1 + ', ' + speed2 + ');\n';
+  return code;
+};
+
 // בלוק: בדיקת ערך שווה ל-0xFF9867
 Blockly.Blocks['check_results_value'] = {
   init: function() {
@@ -2271,6 +2412,30 @@ javascriptGenerator.forBlock['initialize_pins'] = function(block) {
   return code;
 };
 
+// הגדרת הבלוק
+Blockly.Blocks['delay_seconds_block'] = {
+  init: function() {
+    this.appendValueInput("SECONDS")
+        .setCheck("Number")
+        .appendField("חכה");
+    this.appendDummyInput()
+        .appendField("שניות");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(40);
+    this.setTooltip("השהה את התוכנית למספר שניות שצוין");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['delay_seconds_block'] = function(block) {
+  var seconds = javascriptGenerator.valueToCode(block, 'SECONDS', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var code = 'delay(' + seconds + ' * 1000);\n';
+  return code;
+};
+
 //====================================================================================================================================
   const resizeBlocklyDiv = () => {
     if (blocklyDiv.current && blocklyArea.current && workspace) {
@@ -2439,6 +2604,20 @@ javascriptGenerator.forBlock['initialize_pins'] = function(block) {
     alert('Workspace saved!');
   };
 
+const handleSendWhatsApp = () => {
+  const phoneNumber = '+972504633713'; // שנה כאן למספר הטלפון שאליו אתה רוצה לשלוח
+  const message = encodeURIComponent(`קוד Arduino:\n${generatedCode}`); // מקודד את הקוד
+
+  // יצירת הקישור לוואטסאפ
+  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+
+  // פתיחת הקישור בוואטסאפ
+  window.open(whatsappUrl, '_blank');
+
+  // הודעה למשתמש
+  alert('חלון הוואטסאפ שלך אמור להיפתח כעת.');
+};
+
   return (
     <div
       style={{
@@ -2551,6 +2730,27 @@ javascriptGenerator.forBlock['initialize_pins'] = function(block) {
         >
           שמור Workspace
         </button>
+
+            <button
+      onClick={handleSendWhatsApp} // הוסף את הפונקציה כאן
+      style={{
+        backgroundColor: '#E91E63',
+        border: 'none',
+        color: 'white',
+        padding: '8px 16px',
+        textAlign: 'center',
+        textDecoration: 'none',
+        display: 'inline-block',
+        marginTop: '10px',
+        fontSize: '14px',
+        cursor: 'pointer',
+        borderRadius: '5px',
+        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
+        transition: 'background-color 0.3s ease',
+      }}
+    >
+      שלח קוד במייל
+    </button>
       </div>
 
       {isEditorVisible && (
