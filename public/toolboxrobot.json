@@ -68,7 +68,8 @@
  { "kind": "block", "type": "car_right_block" },
  { "kind": "block", "type": "car_stop_block" },
  { "kind": "block", "type": "delay_seconds_block" },
-  { "kind": "block", "type": "initialize_variables" }  
+  { "kind": "block", "type": "initialize_variables" },
+   { "kind": "block", "type": "ir_decode_block" }
     
     
   ]

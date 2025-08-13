@@ -49,6 +49,11 @@ const nodeTypes = {};
 const edgeTypes = {};
 
 const baseCode = `
+#include <Adafruit_GFX.h>
+#include <Adafruit_LEDBackpack.h>
+#include <Wire.h>
+
+Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
 #include <Arduino.h>
 uint8_t  LEDArray[8];
 const int left_ctrl = 4;//define the direction control pin of A motor
@@ -2466,6 +2471,35 @@ matrix.begin(0x70); // כתובת I2C ברירת מחדל
 matrix.clear();
 `;
 };
+
+
+// הגדרת הבלוק
+Blockly.Blocks['ir_decode_block'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("אם נלחץ כפתור בשלט");
+    this.appendStatementInput("STATEMENTS")
+        .setCheck(null)
+        .appendField("בצע את הבלוקים הבאים:");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(160);
+    this.setTooltip("מפענח פקודה משלט IR ומבצע את הבלוקים הפנימיים אם התקבלה פקודה");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['ir_decode_block'] = function(block) {
+  var statements = javascriptGenerator.statementToCode(block, 'STATEMENTS');
+  var code = 'if (irrecv.decode(&results)) {\n' +
+             statements +
+             '  irrecv.resume(); // קבלת הפקודה הבאה\n' +
+             '  delay(100);\n' +
+             '}\n';
+  return code;
+};
+
 
 //====================================================================================================================================
   const resizeBlocklyDiv = () => {
