@@ -56,10 +56,10 @@ const baseCode = `
 Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
 #include <Arduino.h>
 uint8_t  LEDArray[8];
-const int left_ctrl = 4;//define the direction control pin of A motor
-const int left_pwm = 6;//define the speed control of A motor
-const int right_ctrl = 2;//define the direction control pin of B motor
-const int right_pwm = 5;//define the speed control pin of B motor
+#define ML_Ctrl  4   //define the direction control pin of A motor
+#define ML_PWM 6   //define the PWM control pin of A motor
+#define MR_Ctrl  2   //define the direction control pin of B motor
+#define MR_PWM 5   //define the PWM control pin of B motor
 #include <IRremote.h>//function library of IR remote control
 int RECV_PIN = 3;//set the pin of IR receiver to D3
 IRrecv irrecv(RECV_PIN);
@@ -78,7 +78,10 @@ uint8_t matrix_stop2[8]={0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x18};
 
 void setup() {
 
-
+   pinMode(ML_Ctrl, OUTPUT);//set the direction control pin of A motor to OUTPUT
+  pinMode(ML_PWM, OUTPUT);//set the PWM control pin of A motor to OUTPUT
+  pinMode(MR_Ctrl, OUTPUT);//set the direction control pin of B motor to OUTPUT
+  pinMode(MR_PWM, OUTPUT);//set the PWM control pin of B motor to OUTPUT
   // **SETUP_CODE**
 }
 
@@ -125,42 +128,43 @@ void applyCurrentDirection() {
 
 void car_front(int speed1 , int speed2)//define the state of going front
 {
-  digitalWrite(left_ctrl,HIGH);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,HIGH);
-  analogWrite(right_pwm,speed2);
+   digitalWrite(ML_Ctrl,HIGH);//set the direction control pin of A motor to HIGH
+  analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 155
+  digitalWrite(MR_Ctrl,HIGH);//set the direction control pin of B motor to HIGH
+  analogWrite(MR_PWM,speed2);// set the PWM control speed of B motor to 155
+ 
 }
 
 void car_back(int speed1 , int speed2)//define the status of going back
 {
-  digitalWrite(left_ctrl,LOW);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,LOW);
-  analogWrite(right_pwm,speed2);
+    digitalWrite(ML_Ctrl,LOW);//set the direction control pin of A motor to LOW level
+  analogWrite(ML_PWM,speed1);// set the PWM control speed of A motor to 100 
+  digitalWrite(MR_Ctrl,LOW);//set the direction control pin of B motor to LOW level
+  analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 100
 }
 
 void car_left(int speed1 , int speed2)//set the status of left turning
 {
-  digitalWrite(left_ctrl,LOW);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,HIGH);
-  analogWrite(right_pwm,speed2);
+  digitalWrite(ML_Ctrl,LOW);//set the direction control pin of A motor to LOW level
+  analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 100 
+  digitalWrite(MR_Ctrl,HIGH);//set the direction control pin of B motor to HIGH level
+  analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 155
 }
 
 void car_right(int speed1 , int speed2)//set the status of right turning
 {
-  digitalWrite(left_ctrl,HIGH);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,LOW);
-  analogWrite(right_pwm,speed2);
+  digitalWrite(ML_Ctrl,HIGH);//set the direction control pin of A motor to HIGH level
+  analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 155 
+  digitalWrite(MR_Ctrl,LOW);// set the direction control pin of B motor to LOW level
+  analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 100
 }
 
-void car_Stop(int speed1 , int speed2)//define the state of stop
+void car_Stop()//define the state of stop
 {
-  digitalWrite(left_ctrl,LOW);
-  analogWrite(left_pwm,0);
-  digitalWrite(right_ctrl,LOW);
-  analogWrite(right_pwm,0);
+ digitalWrite(ML_Ctrl, LOW);// set the direction control pin of A motor to LOW level
+  analogWrite(ML_PWM,0);//set the PWM control speed of A motor to 0
+  digitalWrite(MR_Ctrl, LOW);// set the direction control pin of B motor to LOW level
+  analogWrite(MR_PWM,0);//set the PWM control speed of B motor to 0
 }
 
 void matrix_display(unsigned char matrix_value[]) {
