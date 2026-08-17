@@ -25,6 +25,9 @@ import MonacoEditor from 'react-monaco-editor';
 import ReactFlow, { Controls, Background } from 'react-flow-renderer';
 // import BlockObject from './BlockObject'; // ייבוא המחלקה
 import 'blockly/javascript'; // חייב להיות לפני שאתה מגדיר את הפונקציות
+import { registerAllBlocks } from './blockRegistry';
+import FlashingModal from './FlashingModal';
+import ComPortStatusBadge from './ComPortStatusBadge';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/database';
 import emailjs from 'emailjs-com';
@@ -54,19 +57,30 @@ const baseCode = `
 #include <Wire.h>
 
 Adafruit_8x8matrix matrix = Adafruit_8x8matrix();
-#include <Arduino.h>
+
 uint8_t  LEDArray[8];
 #define ML_Ctrl  4   //define the direction control pin of A motor
 #define ML_PWM 6   //define the PWM control pin of A motor
 #define MR_Ctrl  2   //define the direction control pin of B motor
 #define MR_PWM 5   //define the PWM control pin of B motor
 #include <IRremote.h>//function library of IR remote control
+
+
 int RECV_PIN = 3;//set the pin of IR receiver to D3
 IRrecv irrecv(RECV_PIN);
 long irr_val;
 decode_results results;
-const int speedIncrement = 10;
+
+
+
+const int speedIncrement = 10; 
 char currentDirection = 'S';
+
+int sensor_L = 11;//define the pin of left line tracking sensor
+int sensor_M = 7;//define the pin of middle line tracking sensor
+int sensor_R = 8;//define the pin of right line tracking sensor
+int L_val,M_val,R_val;//define these variables
+
 uint8_t matrix_heart[8] = {0xCC, 0x33, 0x03, 0x03, 0x84, 0x48, 0x30, 0x00};
 uint8_t matrix_smile[8] = {0x84, 0x4B, 0x4B, 0x00, 0x00, 0x48, 0x30, 0x00};
 uint8_t matrix_front2[8]={0x18,0x24,0x42,0x99,0x24,0x42,0x81,0x00};
@@ -74,38 +88,122 @@ uint8_t matrix_back2[8]={0x00,0x81,0x42,0x24,0x99,0x42,0x24,0x18};
 uint8_t matrix_left2[8]={0x12,0x24,0x48,0x90,0x90,0x48,0x24,0x12};
 uint8_t matrix_right2[8]={0x48,0x24,0x12,0x09,0x09,0x12,0x24,0x48};
 uint8_t matrix_stop2[8]={0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x18};
+int show = 0;
+bool detectedline = false;
+
+// סמיילי משופר
+const uint8_t smiley[] PROGMEM = {
+  B00111100,  // קו מתאר ראשון של הפנים
+  B01000010,  // קו מתאר שני של הפנים
+  B10100101,  // עיניים
+  B10000001,  // המשך עיניים
+  B10011001,  // לחיים
+  B10100101,  // קו מתאר של חיוך
+  B01000010,  // חיוך
+  B00111100   // סגירת חיוך
+};
+
+
+
+
+
+
+
+
+
+
+
+
+// לב ממורכז
+const uint8_t heart[] PROGMEM = {
+  B00100001,  // 0x66
+  B11011110,  // 0x99
+  B11000000,  // 0x81
+  B11000000,  // 0x81
+  B00100001,  // 0x42
+  B00010010,  // 0x24
+  B00001100,  // 0x18
+  B00000000   // 0x00
+};
+
+
+// חץ ימינה ממורכז
+const uint8_t arrowRight[] PROGMEM = {
+  B00001000,
+  B00001100,
+  B00001110,
+  B11111111,
+  B00001110,
+  B00001100,
+  B00001000,
+  B00000000
+};
+
+const uint8_t matrix_hand[8] = {
+  B00111100,  // קצה היד (עגול) - כמו קודם
+  B01111110,  // אצבעות - קצת יותר רחבות
+  B01111110,  // המשך אצבעות
+  B01100110,  // התחלת כף היד
+  B01000010,  // המשך כף היד
+  B01000010,  // המשך כף היד
+  B00111100,  // שורש כף היד - קצת יותר צר
+  B00000000   // רווח תחתון - כמו קודם
+};
+
+
+
+
+// כוכב ממורכז
+const uint8_t star[] PROGMEM = {
+  B00011000,
+  B00111100,
+  B01111110,
+  B11111111,
+  B01111110,
+  B00111100,
+  B00011000,
+  B00000000
+};
+
+// uint8_t matrix_smile[8] = {
+//   B10000100, // 0x21 - הזזה שמאלה של B01000010
+//   B01001011, // 0x4A - הזזה שמאלה של B10100101
+//   B01001011, // 0x4A - הזזה שמאלה של B10100101
+//   B00000000, // 0x00 - אין שינוי
+//   B00000000, // 0x00 - אין שינוי
+//   B01001000, // 0x48 - הזזה שמאלה של B00100100
+//   B00110000, // 0x30 - הזזה שמאלה של B00011000
+//   B00000000  // 0x00 - אין שינוי
+// };
+// uint8_t matrix_heart[8] = {
+//   B11001100,
+//   B00110011,
+//   B00000011,
+//   B00000011,
+//   B10000100,
+//   B01001000,
+//   B00110000,
+//   B00000000
+// };
 // **GLOBAL_VARIABLES**
 
 void setup() {
 
-   pinMode(ML_Ctrl, OUTPUT);//set the direction control pin of A motor to OUTPUT
-  pinMode(ML_PWM, OUTPUT);//set the PWM control pin of A motor to OUTPUT
-  pinMode(MR_Ctrl, OUTPUT);//set the direction control pin of B motor to OUTPUT
-  pinMode(MR_PWM, OUTPUT);//set the PWM control pin of B motor to OUTPUT
+
   // **SETUP_CODE**
 }
 
 void loop() {
 
-
- // **LOOP_CODE**
-  if (irrecv.decode(&results)) {
-
-
- 
-
-
- irrecv.resume(); // קבלת הפקודה הבאה
-    delay(100);
-}
+  // **LOOP_CODE**
 
 
 
 }
 
-
-void applyCurrentDirection() {
+void applyCurrentDirection(int number) {
   // פונקציה שמפעילה את הכיוון הנוכחי עם המהירות הנוכחית
+  if(number == 1) {
   switch (currentDirection) {
     case 'F':
       car_front(speedleft, speedright);
@@ -120,15 +218,123 @@ void applyCurrentDirection() {
       car_right(speedleft, speedright);
       break;
     case 'S':
-      car_Stop(speedleft, speedright);
+      car_Stop();
       break;
+  }
+  } else {
+   switch (currentDirection) {
+    case 'F':
+      car_front2(speedleft, speedright);
+      break;
+    case 'B':
+      car_back2(speedleft, speedright);
+      break;
+    case 'L':
+      car_left2(speedleft, speedright);
+      break;
+    case 'R':
+      car_right2(speedleft, speedright);
+      break;
+    case 'S':
+      car_Stop2();
+      break;
+  }
+
+
+
   }
 }
 
 
+void tracking(int number)
+{
+      
+    L_val = digitalRead(sensor_L); // קריאת ערך מחיישן קו שמאל
+    M_val = digitalRead(sensor_M); // קריאת ערך מחיישן קו אמצעי
+    R_val = digitalRead(sensor_R); // קריאת ערך מחיישן קו ימין
+    Serial.println( L_val );
+     Serial.println( M_val );
+      Serial.println( R_val);
+
+if (number == 1) {
+  if (M_val == 1) {  // אם החיישן האמצעי מזהה קו שחור
+
+    if (L_val == 1 && R_val == 0) {  // אם קו שחור מזוהה בצד שמאל, אבל לא בצד ימין, פנה שמאלה
+      car_left(100,100);
+    } else if (L_val == 0 && R_val == 1) {  // אחרת, אם קו שחור מזוהה בצד ימין ולא בצד שמאל, פנה ימינה
+      car_right(100,100);
+    } else {  // אחרת, סע קדימה
+      car_front(100,100);
+    }
+  } else {                           // לא זוהו קווים שחורים באמצע
+    if (L_val == 1 && R_val == 0) {  // אם קו שחור מזוהה בצד שמאל, אבל לא בצד ימין, פנה שמאלה
+      car_left(100,100);
+    } else if (L_val == 0 && R_val == 1) {  // אחרת, אם קו שחור מזוהה בצד ימין ולא בצד שמאל, פנה ימינה
+      car_right(100,100);
+    }  else if( L_val == 0 && R_val == 0) {  // אחרת, עצור
+      car_front(100,100);
+    }
+  }
+} else {
+  if (M_val == 1) {  // אם החיישן האמצעי מזהה קו שחור
+
+    if (L_val == 1 && R_val == 0) {  // אם קו שחור מזוהה בצד שמאל, אבל לא בצד ימין, פנה שמאלה
+      car_left2(100,100);
+    } else if (L_val == 0 && R_val == 1) {  // אחרת, אם קו שחור מזוהה בצד ימין ולא בצד שמאל, פנה ימינה
+      car_right2(100,100);
+    } else {  // אחרת, סע קדימה
+      car_front2(100,100);
+    }
+  } else {                           // לא זוהו קווים שחורים באמצע
+    if (L_val == 1 && R_val == 0) {  // אם קו שחור מזוהה בצד שמאל, אבל לא בצד ימין, פנה שמאלה
+      car_left2(100,100);
+    } else if (L_val == 0 && R_val == 1) {  // אחרת, אם קו שחור מזוהה בצד ימין ולא בצד שמאל, פנה ימינה
+      car_right2(100,100);
+    } else if( L_val == 0 && R_val == 0) {  // אחרת, עצור
+     car_front2(100,100);
+    }
+  }
+  }
+}
+
+void car_front2(int speed1 , int speed2)//define the state of going front
+{
+   digitalWrite(ML_Ctrl,LOW);//set the direction control pin of A motor to HIGH
+  analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 155
+  digitalWrite(MR_Ctrl,LOW);//set the direction control pin of B motor to HIGH
+  analogWrite(MR_PWM,speed2);// set the PWM control speed of B motor to 155
+ 
+}
+
+void car_back2(int speed1 , int speed2)//define the status of going back
+{
+    digitalWrite(ML_Ctrl,HIGH);//set the direction control pin of A motor to LOW level
+  analogWrite(ML_PWM,speed1);// set the PWM control speed of A motor to 100 
+  digitalWrite(MR_Ctrl,HIGH);//set the direction control pin of B motor to LOW level
+  analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 100
+}
+
+void car_left2(int speed1 , int speed2)//set the status of left turning
+{
+  digitalWrite(ML_Ctrl,HIGH);//set the direction control pin of A motor to LOW level
+  analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 100 
+  digitalWrite(MR_Ctrl,LOW);//set the direction control pin of B motor to HIGH level
+  analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 155
+}
+
+void car_right2(int speed1 , int speed2)//set the status of right turning
+{
+  digitalWrite(ML_Ctrl,LOW);//set the direction control pin of A motor to HIGH level
+  analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 155 
+  digitalWrite(MR_Ctrl,HIGH);// set the direction control pin of B motor to LOW level
+  analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 100
+}
+
+
+
 void car_front(int speed1 , int speed2)//define the state of going front
 {
-   digitalWrite(ML_Ctrl,HIGH);//set the direction control pin of A motor to HIGH
+  digitalWrite(ML_Ctrl,HIGH);//set the direction control pin of A motor to HIGH
   analogWrite(ML_PWM,speed1);//set the PWM control speed of A motor to 155
   digitalWrite(MR_Ctrl,HIGH);//set the direction control pin of B motor to HIGH
   analogWrite(MR_PWM,speed2);// set the PWM control speed of B motor to 155
@@ -137,7 +343,7 @@ void car_front(int speed1 , int speed2)//define the state of going front
 
 void car_back(int speed1 , int speed2)//define the status of going back
 {
-    digitalWrite(ML_Ctrl,LOW);//set the direction control pin of A motor to LOW level
+  digitalWrite(ML_Ctrl,LOW);//set the direction control pin of A motor to LOW level
   analogWrite(ML_PWM,speed1);// set the PWM control speed of A motor to 100 
   digitalWrite(MR_Ctrl,LOW);//set the direction control pin of B motor to LOW level
   analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 100
@@ -158,7 +364,13 @@ void car_right(int speed1 , int speed2)//set the status of right turning
   digitalWrite(MR_Ctrl,LOW);// set the direction control pin of B motor to LOW level
   analogWrite(MR_PWM,speed2);//set the PWM control speed of B motor to 100
 }
-
+void car_Stop2()//define the state of stop
+{
+ digitalWrite(ML_Ctrl, LOW);// set the direction control pin of A motor to LOW level
+  analogWrite(ML_PWM,0);//set the PWM control speed of A motor to 0
+  digitalWrite(MR_Ctrl, LOW);// set the direction control pin of B motor to LOW level
+  analogWrite(MR_PWM,0);//set the PWM control speed of B motor to 0
+}
 void car_Stop()//define the state of stop
 {
  digitalWrite(ML_Ctrl, LOW);// set the direction control pin of A motor to LOW level
@@ -166,6 +378,24 @@ void car_Stop()//define the state of stop
   digitalWrite(MR_Ctrl, LOW);// set the direction control pin of B motor to LOW level
   analogWrite(MR_PWM,0);//set the PWM control speed of B motor to 0
 }
+// פונקציה לציור לפי מזהה
+void drawIcon(uint8_t iconId) {
+  const uint8_t* icon;
+
+  switch (iconId) {
+    case 0: icon = smiley; break;
+    case 1: icon = heart; break;
+    case 2: icon = arrowRight; break;
+    case 3: icon = matrix_hand; break;
+    case 4: icon = star; break;
+    default: icon = smiley; break; // ברירת מחדל
+  }
+
+  matrix.clear();
+  matrix.drawBitmap(0, 0, icon, 8, 8, LED_ON);
+  matrix.writeDisplay();
+}
+//The function that dot matrix shows pattern
 
 void matrix_display(unsigned char matrix_value[]) {
   matrix.clear(); // מנקה את התצוגה לפני שמציירים משהו חדש
@@ -194,9 +424,26 @@ function SrobotBuilder({ initialXml }) {
   const [toolboxConfiguration, setToolboxConfiguration] = useState(null);
   const [isEditorVisible, setIsEditorVisible] = useState(false);
   const [filename, setFilename] = useState('arduino_code.ino');
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const saveWorkspaceRef = useRef(null);
   const isInitialMount = useRef(true);
   const [file, setFile] = useState(null);
+  const [selectedBoard, setSelectedBoard] = useState('esp32');
+  const [comPort, setComPort] = useState('COM3');
+  const [compileResult, setCompileResult] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showFlashingModal, setShowFlashingModal] = useState(false);
+  const [flashingMode, setFlashingMode] = useState('flash');
+
+  const handleCompile = async () => {
+    setFlashingMode('compile');
+    setShowFlashingModal(true);
+  };
+
+  const handleUpload = async () => {
+    setFlashingMode('flash');
+    setShowFlashingModal(true);
+  };
    // =======================================================================================================================================4
 
 
@@ -2092,10 +2339,48 @@ javascriptGenerator.forBlock['check_back_arrow'] = function(block) {
   return [code, javascriptGenerator.ORDER_EQUALITY];
 };
 
+Blockly.Blocks['check_right_arrow'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("האם חץ ימינה נלחץ");
+    this.setOutput(true, "Boolean");
+    this.setColour(120); // ירוק
+    this.setTooltip("בודק אם כפתור חץ ימינה נלחץ בשלט");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['check_right_arrow'] = function(block) {
+  var code = 'results.value == 0xFFC23D';
+  return [code, javascriptGenerator.ORDER_EQUALITY];
+};
+
+Blockly.Blocks['check_left_arrow'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("האם חץ שמאלה נלחץ");
+    this.setOutput(true, "Boolean");
+    this.setColour(120); // ירוק
+    this.setTooltip("בודק אם כפתור חץ שמאלה נלחץ בשלט");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['check_left_arrow'] = function(block) {
+  var code = 'results.value == 0xFF22DD';
+  return [code, javascriptGenerator.ORDER_EQUALITY];
+};
+
 Blockly.Blocks['increase_speed'] = {
   init: function() {
     this.appendDummyInput()
         .appendField("הגבר מהירות");
+    this.appendDummyInput()
+        .appendField("סוג רובוט:")
+        .appendField(new Blockly.FieldDropdown([
+          ["סוג 1", "1"],
+          ["סוג 2", "2"]
+        ]), "ROBOT_TYPE");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(210); // ירוק
@@ -2105,10 +2390,11 @@ Blockly.Blocks['increase_speed'] = {
 };
 
 javascriptGenerator.forBlock['increase_speed'] = function(block) {
+  var robotType = block.getFieldValue('ROBOT_TYPE');
   var code = `
 speedright = min(255, speedright + speedIncrement); // הגבלת מהירות מקסימלית
 speedleft = min(255, speedleft + speedIncrement);   // הגבלת מהירות מקסימלית
-applyCurrentDirection(); // הפעלת הכיוון הנוכחי עם המהירות החדשה
+applyCurrentDirection(${robotType}); // הפעלת הכיוון הנוכחי עם המהירות החדשה
 `;
   return code;
 };
@@ -2117,6 +2403,12 @@ Blockly.Blocks['decrease_speed'] = {
   init: function() {
     this.appendDummyInput()
         .appendField("הפחת מהירות");
+         this.appendDummyInput()
+        .appendField("סוג רובוט:")
+        .appendField(new Blockly.FieldDropdown([
+          ["סוג 1", "1"],
+          ["סוג 2", "2"]
+        ]), "ROBOT_TYPE");
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(210); // סגול
@@ -2126,10 +2418,11 @@ Blockly.Blocks['decrease_speed'] = {
 };
 
 javascriptGenerator.forBlock['decrease_speed'] = function(block) {
+   var robotType = block.getFieldValue('ROBOT_TYPE');
   var code = `
 speedright = max(0, speedright - speedIncrement); // הגבלת מהירות מינימלית
 speedleft = max(0, speedleft - speedIncrement);   // הגבלת מהירות מינימלית
-applyCurrentDirection(); // הפעלת הכיוון הנוכחי עם המהירות החדשה
+applyCurrentDirection(${robotType}); // הפעלת הכיוון הנוכחי עם המהירות החדשה
 `;
   return code;
 };
@@ -2184,6 +2477,40 @@ Blockly.Blocks['check_button_5'] = {
 
 javascriptGenerator.forBlock['check_button_5'] = function(block) {
   var code = 'results.value == 0xFF18E7'; // הערך הוא לדוגמה, תעדכן לפי הקוד שלך
+  return [code, javascriptGenerator.ORDER_EQUALITY];
+};
+
+// בלוק לבדיקה אם כפתור 8 נלחץ
+Blockly.Blocks['check_button_1'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("האם כפתור 1 בשלט נלחץ");
+    this.setOutput(true, "Boolean");
+    this.setColour(120);
+    this.setTooltip("בודק אם כפתור 1 נלחץ");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['check_button_1'] = function(block) {
+  var code = 'results.value == 0xFF6897'; // הערך הוא לדוגמה, תעדכן לפי הקוד שלך
+  return [code, javascriptGenerator.ORDER_EQUALITY];
+};
+
+// בלוק לבדיקה אם כפתור 8 נלחץ
+Blockly.Blocks['check_button_3'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("האם כפתור 3 בשלט נלחץ");
+    this.setOutput(true, "Boolean");
+    this.setColour(120);
+    this.setTooltip("בודק אם כפתור 3 נלחץ");
+    this.setHelpUrl("");
+  }
+};
+
+javascriptGenerator.forBlock['check_button_3'] = function(block) {
+  var code = 'results.value == 0xFFB04F'; // הערך הוא לדוגמה, תעדכן לפי הקוד שלך
   return [code, javascriptGenerator.ORDER_EQUALITY];
 };
 
@@ -2309,8 +2636,7 @@ Blockly.Blocks['display_matrix_image'] = {
 
 javascriptGenerator.forBlock['display_matrix_image'] = function(block) {
   var imageName = block.getFieldValue('IMAGE_NAME');
-  var code = 'matrix_display(' + imageName + ');\n' +
-             'delay(2000);\n';
+  var code = 'matrix_display(' + imageName + ');\n';
   return code;
 };
 
@@ -2346,7 +2672,7 @@ javascriptGenerator['robot_code_block'] = function(block) {
 Blockly.Blocks['car_move_advanced'] = {
   init: function() {
     this.appendDummyInput()
-        .appendField(" כיוון נסיעה")
+        .appendField("כיוון נסיעה")
         .appendField(new Blockly.FieldDropdown([
           ["קדימה", "F"],
           ["אחורה", "B"],
@@ -2360,11 +2686,17 @@ Blockly.Blocks['car_move_advanced'] = {
     this.appendValueInput("SPEED2")
         .setCheck("Number")
         .appendField("מהירות ימין");
+    this.appendDummyInput()
+        .appendField("סוג פונקציה:")
+        .appendField(new Blockly.FieldDropdown([
+          ["סוג 1", "1"],
+          ["סוג 2", "2"]
+        ]), "FUNCTION_TYPE");
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(210);
-    this.setTooltip("בלוק נסיעה מתקדם עם כיוון ומהירויות משתנות");
+    this.setTooltip("בלוק נסיעה מתקדם עם כיוון, מהירויות וסוג פונקציה");
     this.setHelpUrl("");
   }
 };
@@ -2374,15 +2706,18 @@ javascriptGenerator.forBlock['car_move_advanced'] = function(block) {
   var direction = block.getFieldValue('DIRECTION');
   var speed1 = javascriptGenerator.valueToCode(block, 'SPEED1', javascriptGenerator.ORDER_ATOMIC) || '0';
   var speed2 = javascriptGenerator.valueToCode(block, 'SPEED2', javascriptGenerator.ORDER_ATOMIC) || '0';
+  var functionType = block.getFieldValue('FUNCTION_TYPE');
 
   var functionName = '';
+  var suffix = (functionType === '2') ? '2' : ''; // הוספת סיומת אם סוג הפונקציה הוא 2
+
   switch (direction) {
-    case 'F': functionName = 'car_front'; break;
-    case 'B': functionName = 'car_back'; break;
-    case 'L': functionName = 'car_left'; break;
-    case 'R': functionName = 'car_right'; break;
-    case 'S': functionName = 'car_Stop'; break; // תוקן השם
-    default: functionName = 'car_Stop'; break;
+    case 'F': functionName = 'car_front' + suffix; break;
+    case 'B': functionName = 'car_back' + suffix; break;
+    case 'L': functionName = 'car_left' + suffix; break;
+    case 'R': functionName = 'car_right' + suffix; break;
+    case 'S': functionName = 'car_Stop' + suffix; break;
+    default: functionName = 'car_Stop' + suffix; break;
   }
 
   var code = "currentDirection = '" + direction + "';\n";
@@ -2407,18 +2742,23 @@ Blockly.Blocks['initialize_pins'] = {
 // גנרטור הקוד
 javascriptGenerator.forBlock['initialize_pins'] = function(block) {
   var code = `
-  pinMode(left_ctrl,OUTPUT);//
-  pinMode(left_pwm,OUTPUT);//
-  pinMode(right_ctrl,OUTPUT);//
-  pinMode(right_pwm,OUTPUT);//
-    Serial.begin(115200);//
-  // In case the interrupt driver crashes on setup, give a clue
-  // to the user what's going on.
-  Serial.println("Enabling IRin");
-  irrecv.enableIRIn(); // Start the receiver
-  Serial.println("Enabled IRin");
-  matrix.begin(0x70); // כתובת I2C ברירת מחדל
-  matrix.clear();
+pinMode(ML_Ctrl, OUTPUT);  //set the direction control pin of A motor to OUTPUT
+pinMode(ML_PWM, OUTPUT);   //set the PWM control pin of A motor to OUTPUT
+pinMode(MR_Ctrl, OUTPUT);  //set the direction control pin of B motor to OUTPUT
+pinMode(MR_PWM, OUTPUT);   //set the PWM control pin of B motor to OUTPUT
+Serial.begin(115200);      //
+pinMode(sensor_L, INPUT);  //set the pins of left line tracking sensor to INPUT
+pinMode(sensor_M, INPUT);  //set the pins of middle line tracking sensor to INPUT
+pinMode(sensor_R, INPUT);  //set the pins of right line tracking sensor to INPUT
+
+Serial.println("Enabling IRin");
+irrecv.enableIRIn();  // Start the receiver
+Serial.println("Enabled IRin");
+
+
+
+matrix.begin(0x70);  // כתובת I2C ברירת מחדל
+matrix.clear();
   `;
   return code;
 };
@@ -2447,6 +2787,33 @@ javascriptGenerator.forBlock['delay_seconds_block'] = function(block) {
   return code;
 };
 
+// הגדרת הבלוק
+Blockly.Blocks['call_car_stop'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("עצור רובוט");
+    this.appendDummyInput()
+        .appendField("סוג רובוט:")
+        .appendField(new Blockly.FieldDropdown([
+          ["סוג 1", "1"],
+          ["סוג 2", "2"]
+        ]), "ROBOT_TYPE");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(100); // חום
+    this.setTooltip("קריאה לפונקציית עצירת רובוט עם בחירת סוג");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['call_car_stop'] = function(block) {
+  var robotType = block.getFieldValue('ROBOT_TYPE');
+  var functionName = (robotType === '2') ? 'car_Stop2' : 'car_Stop';
+  var code = functionName + '();\n';
+  return code;
+};
+
 // הגדרה של הבלוק
 Blockly.Blocks['initialize_variables'] = {
   init: function() {
@@ -2461,18 +2828,24 @@ Blockly.Blocks['initialize_variables'] = {
 };
 javascriptGenerator.forBlock['initialize_variables'] = function() {
   return `
-pinMode(left_ctrl,OUTPUT);
-pinMode(left_pwm,OUTPUT);
-pinMode(right_ctrl,OUTPUT);
-pinMode(right_pwm,OUTPUT);
-Serial.begin(115200);
-// In case the interrupt driver crashes on setup, give a clue
-// to the user what's going on.
+pinMode(ML_Ctrl, OUTPUT);  //set the direction control pin of A motor to OUTPUT
+pinMode(ML_PWM, OUTPUT);   //set the PWM control pin of A motor to OUTPUT
+pinMode(MR_Ctrl, OUTPUT);  //set the direction control pin of B motor to OUTPUT
+pinMode(MR_PWM, OUTPUT);   //set the PWM control pin of B motor to OUTPUT
+Serial.begin(115200);      //
+pinMode(sensor_L, INPUT);  //set the pins of left line tracking sensor to INPUT
+pinMode(sensor_M, INPUT);  //set the pins of middle line tracking sensor to INPUT
+pinMode(sensor_R, INPUT);  //set the pins of right line tracking sensor to INPUT
+
 Serial.println("Enabling IRin");
-irrecv.enableIRIn(); // Start the receiver
+irrecv.enableIRIn();  // Start the receiver
 Serial.println("Enabled IRin");
-matrix.begin(0x70); // כתובת I2C ברירת מחדל
+
+
+
+matrix.begin(0x70);  // כתובת I2C ברירת מחדל
 matrix.clear();
+  
 `;
 };
 
@@ -2501,6 +2874,85 @@ javascriptGenerator.forBlock['ir_decode_block'] = function(block) {
              '  irrecv.resume(); // קבלת הפקודה הבאה\n' +
              '  delay(100);\n' +
              '}\n';
+  return code;
+};
+
+// הגדרת הבלוק
+Blockly.Blocks['line_tracking_with_type'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("הפעל מעקב קו");
+    this.appendDummyInput()
+        .appendField("סוג רובוט:")
+        .appendField(new Blockly.FieldDropdown([
+          ["סוג 1", "1"],
+          ["סוג 2", "2"]
+        ]), "ROBOT_TYPE");
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(120);
+    this.setTooltip("פונקציית מעקב קו עם בחירת סוג רובוט");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['line_tracking_with_type'] = function(block) {
+  var robotType = block.getFieldValue('ROBOT_TYPE');
+
+  var code = 'tracking(' + robotType + ');\n' +
+              'detectedline = true;\n';
+  return code;
+};
+
+// הגדרת הבלוק
+Blockly.Blocks['if_detected_line'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("אם זוהה קו");
+    this.appendStatementInput("STATEMENTS")
+        .setCheck(null)
+        .appendField("בצע:");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(210); // כחול
+    this.setTooltip("מבצע את הבלוקים הפנימיים רק אם זוהה קו");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['if_detected_line'] = function(block) {
+  var statements = javascriptGenerator.statementToCode(block, 'STATEMENTS');
+  var code = 'if (detectedline == true) {\n' +
+             statements +
+             '}\n';
+  return code;
+};
+
+
+// הגדרת הבלוק
+Blockly.Blocks['set_detected_line'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField(" עדכן משתנה לזיהוי קן")
+        .appendField(new Blockly.FieldDropdown([
+          ["אמת", "TRUE"],
+          ["שקר", "FALSE"]
+        ]), "VALUE");
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(20); // כתום
+    this.setTooltip("מגדיר את הערך של המשתנה 'detectedline'");
+    this.setHelpUrl("");
+  }
+};
+
+// גנרטור הקוד
+javascriptGenerator.forBlock['set_detected_line'] = function(block) {
+  var value = block.getFieldValue('VALUE');
+  var code = 'detectedline = ' + (value === 'TRUE' ? 'true' : 'false') + ';\n';
   return code;
 };
 
@@ -2625,7 +3077,6 @@ javascriptGenerator.forBlock['ir_decode_block'] = function(block) {
       console.error('שגיאה באתחול Blockly:', error);
     }
   }, [toolboxConfiguration, initialXml, generateCodeFromWorkspace, workspace]);
-
   useEffect(() => {
     const fetchToolboxConfiguration = async () => {
       try {
@@ -2641,6 +3092,7 @@ javascriptGenerator.forBlock['ir_decode_block'] = function(block) {
   }, []);
 
   useEffect(() => {
+    registerAllBlocks();
     if (toolboxConfiguration) {
       initializeBlockly();
     }
@@ -2675,188 +3127,197 @@ javascriptGenerator.forBlock['ir_decode_block'] = function(block) {
 
   const toggleEditorVisibility = () => {
     setIsEditorVisible(!isEditorVisible);
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
   };
+
   const saveWorkspaceButtonClick = () => {
     if (saveWorkspaceRef.current) {
-  saveWorkspaceRef.current();
-   alert('Workspace saved!');
-} else{
-  alert('Workspace NOT saved!'); 
-}
-  }
-  
-  const handleFileChange = (event) => {
-    setFile(event.target.files[0]);
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const result = await emailjs.sendForm('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', event.target, 'YOUR_USER_ID');
-      alert('Email sent successfully!');
-    } catch (error) {
-      console.error('Error sending email:', error);
+      saveWorkspaceRef.current();
+      alert('Workspace saved!');
+    } else {
+      alert('Workspace NOT saved!');
     }
   };
+
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '800px',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <div style={{ width: '100%', flex: 1, overflow: 'auto' }}>
-        <div style={{ width: '5000px', height: '10000px' }}>
-          <ReactFlow
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            style={{ width: '100%', height: '100%' }}
+    <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', direction: 'rtl', overflow: 'hidden' }}>
+      {/* סרגל כלים עליון מעוצב (Clean Studio Header Toolbar) */}
+      <div className="builder-header-toolbar">
+        <div className="builder-brand-group">
+          <span className="builder-brand-title">🤖 סביבת פיתוח רובוט בבלוקים</span>
+          <span style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: '12px', background: '#e0e7ff', color: '#4f46e5', fontWeight: 'bold' }}>
+            Smart Robot Studio
+          </span>
+        </div>
+
+        {/* Quick Status Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f5f9', padding: '5px 14px', borderRadius: '20px', fontSize: '0.82rem', color: '#475569', fontWeight: '700' }}>
+          <span>🔥 {selectedBoard === 'esp32' ? 'ESP32 Dev Module' : selectedBoard}</span>
+          <span>•</span>
+          <span>🔌 {comPort}</span>
+          <span>•</span>
+          <span>📄 {filename}</span>
+        </div>
+
+        {/* Primary Controls & Dropdown Menu */}
+        <div className="builder-controls-wrapper" style={{ position: 'relative' }}>
+          <button onClick={toggleEditorVisibility} className="builder-btn">
+            👁️ {isEditorVisible ? 'הסתר קוד' : 'הצג קוד בלייב'}
+          </button>
+          
+          <button onClick={handleUpload} className="builder-btn builder-btn-hero" disabled={isProcessing}>
+            🚀 צרוב ל-ESP32 / לוח
+          </button>
+
+          {/* Toggle Settings Dropdown Button */}
+          <button 
+            onClick={() => setShowSettingsMenu(!showSettingsMenu)} 
+            className="builder-btn"
+            style={{ background: showSettingsMenu ? '#e2e8f0' : '#ffffff' }}
           >
-            <Controls />
-            <Background color="#eee" gap={16} />
-          </ReactFlow>
+            ⚙️ הגדרות וקובץ {showSettingsMenu ? '▲' : '▼'}
+          </button>
+
+          {/* Floating Settings Dropdown Menu */}
+          {showSettingsMenu && (
+            <div className="builder-settings-dropdown">
+              <div className="settings-dropdown-header">
+                <strong>⚙️ הגדרות קובץ וחומרה</strong>
+                <button onClick={() => setShowSettingsMenu(false)} className="dropdown-close-btn">✕</button>
+              </div>
+
+              <div className="settings-dropdown-section">
+                <label className="dropdown-label">שם קובץ:</label>
+                <input 
+                  type="text" 
+                  value={filename} 
+                  onChange={(e) => setFilename(e.target.value)} 
+                  className="builder-input-field"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="settings-dropdown-section">
+                <label className="dropdown-label">בחר לוח:</label>
+                <select 
+                  value={selectedBoard} 
+                  onChange={(e) => setSelectedBoard(e.target.value)}
+                  className="builder-select-box"
+                  style={{ width: '100%' }}
+                >
+                  <option value="esp32">🔥 ESP32 Dev Module</option>
+                  <option value="esp32s3">⚡ ESP32-S3</option>
+                  <option value="uno">🤖 Arduino Uno</option>
+                  <option value="nano">🔹 Arduino Nano</option>
+                </select>
+              </div>
+
+              <div className="settings-dropdown-section">
+                <label className="dropdown-label">יציאת COM (Port):</label>
+                <select 
+                  value={comPort} 
+                  onChange={(e) => setComPort(e.target.value)} 
+                  className="builder-select-box"
+                  style={{ width: '100%', marginBottom: '6px', padding: '6px 10px' }}
+                >
+                  {Array.from({ length: 20 }, (_, i) => `COM${i + 1}`).map(port => (
+                    <option key={port} value={port}>{port}</option>
+                  ))}
+                </select>
+                <ComPortStatusBadge currentPort={comPort} onSelectPort={setComPort} board={selectedBoard} />
+              </div>
+
+              <div style={{ height: '1px', background: '#e2e8f0', margin: '12px 0' }}></div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button onClick={() => { saveWorkspaceButtonClick(); setShowSettingsMenu(false); }} className="builder-btn" style={{ justifyContent: 'center' }}>
+                  💾 שמור Workspace
+                </button>
+                <button onClick={() => { handleDownload(); setShowSettingsMenu(false); }} className="builder-btn" style={{ justifyContent: 'center' }}>
+                  📥 הורד קוד (.ino)
+                </button>
+                <button onClick={() => { handleCompile(); setShowSettingsMenu(false); }} className="builder-btn builder-btn-primary" style={{ justifyContent: 'center' }} disabled={isProcessing}>
+                  ⚙️ קמפל קוד
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div
-        ref={blocklyDiv}
-        id="blocklyDiv"
-        style={{
-          width: '100%',
-          height: '7000px',
-          position: 'relative',
-          zIndex: 2,
-        }}
-      ></div>
+      {/* אזור העבודה הראשי - Split-Screen */}
+      <div className="builder-workspace-container">
+        {/* אזור Blockly הראשי */}
+        <div className="builder-blockly-wrapper">
+          <div
+            ref={blocklyDiv}
+            id="blocklyDiv"
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+            }}
+          ></div>
+        </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '100px' }}>
-        <label htmlFor="filename" style={{ marginRight: '5px', marginTop: '10px', }}>שם קובץ:</label>
-        <input
-          type="text"
-          id="filename"
-          value={filename}
-          onChange={(e) => setFilename(e.target.value)}
-          style={{
-            marginRight: '10px',
-            marginTop: '10px',
-            padding: '8px',
-            fontSize: '14px',
-            borderRadius: '5px',
-            border: '1px solid #ccc',
-          }}
-        />
-        <button
-          onClick={handleDownload}
-          style={{
-            backgroundColor: '#4CAF50',
-            border: 'none',
-            color: 'white',
-            padding: '8px 16px',
-            textAlign: 'center',
-            textDecoration: 'none',
-            display: 'inline-block',
-            marginTop: '10px',
-            fontSize: '14px',
-            marginRight: '10px',
-            cursor: 'pointer',
-            borderRadius: '5px',
-            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-            transition: 'background-color 0.3s ease',
-          }}
-        >
-          הורד קוד
-        </button>
-        <button
-          onClick={toggleEditorVisibility}
-          style={{
-            backgroundColor: '#2196F3',
-            border: 'none',
-            color: 'white',
-            padding: '8px 16px',
-            textAlign: 'center',
-            textDecoration: 'none',
-            display: 'inline-block',
-            fontSize: '14px',
-            marginRight: '10px',
-            marginTop: '10px',
-            cursor: 'pointer',
-            borderRadius: '5px',
-            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-            transition: 'background-color 0.3s ease',
-          }}
-        >
-          {isEditorVisible ? 'הסתר קוד' : 'הצג קוד'}
-        </button>
-
-        <button
-          onClick={saveWorkspaceButtonClick}
-          style={{
-            backgroundColor: '#007BFF',
-            border: 'none',
-            color: 'white',
-            padding: '8px 16px',
-            textAlign: 'center',
-            textDecoration: 'none',
-            display: 'inline-block',
-            marginTop: '10px',
-            fontSize: '14px',
-            cursor: 'pointer',
-            borderRadius: '5px',
-            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-            transition: 'background-color 0.3s ease',
-          }}
-        >
-          שמור Workspace
-        </button>
-
-            {/* <button
-      onClick={handleSendEmail} // הוסף את הפונקציה כאן
-      style={{
-        backgroundColor: '#E91E63',
-        border: 'none',
-        color: 'white',
-        padding: '8px 16px',
-        textAlign: 'center',
-        textDecoration: 'none',
-        display: 'inline-block',
-        marginTop: '10px',
-        fontSize: '14px',
-        cursor: 'pointer',
-        borderRadius: '5px',
-        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-        transition: 'background-color 0.3s ease',
-      }}
-    >
-      שלח קוד במייל
-    </button> */}
+        {/* פאנל קוד צדי בלייב (Live Split View Panel) */}
+        {isEditorVisible && (
+          <div className="builder-side-code-panel">
+            <div className="code-panel-header">
+              <span className="code-panel-title">💻 קוד C++ / Arduino בלייב</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedCode);
+                    alert('הקוד הועתק ללוח!');
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                >
+                  📋 העתק קוד
+                </button>
+                <button 
+                  onClick={toggleEditorVisibility} 
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 'bold' }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="code-panel-body">
+              <MonacoEditor
+                key={generatedCode}
+                width="100%"
+                height="100%"
+                language="cpp"
+                theme="vs-light"
+                value={generatedCode}
+                options={{
+                  selectOnLineNumbers: true,
+                  readOnly: false,
+                  wordWrap: 'on',
+                  wrappingIndent: 'deepIndent',
+                  fontSize: 13,
+                  minimap: { enabled: false }
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {isEditorVisible && (
-        <MonacoEditor
-          key={generatedCode}
-          width="100%"
-          height="6000px"
-          language="arduino"
-          theme="vs-light"
-          value={generatedCode}
-          options={{
-            selectOnLineNumbers: true,
-            readOnly: false,
-            wordWrap: 'on',
-            wrappingIndent: 'deepIndent'
-          }}
-          style={{ zIndex: 1 }}
-        />
-      )}
-      
+      {/* 🚀 FLASHING & COMPILATION PROCESS MODAL */}
+      <FlashingModal 
+        isOpen={showFlashingModal}
+        onClose={() => setShowFlashingModal(false)}
+        mode={flashingMode}
+        board={selectedBoard}
+        comPort={comPort}
+        filename={filename}
+        code={generatedCode}
+      />
     </div>
-    
   );
 }
 

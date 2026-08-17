@@ -1,793 +1,851 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-  useCallback
-} from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as Blockly from 'blockly';
-import {
-  javascriptGenerator
-} from 'blockly/javascript';
-import MonacoEditor from 'react-monaco-editor';
-import ReactFlow, {
-  Controls,
-  Background
-} from 'react-flow-renderer';
+import { javascriptGenerator } from 'blockly/javascript';
 import 'blockly/javascript';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/database';
+import { 
+  registerAllBlocks, 
+  registerSingleBlock, 
+  addBlockToRegistry
+} from './blockRegistry';
 
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  measurementId: "YOUR_MEASUREMENT_ID"
-};
+// Supported Programming Languages
+const SUPPORTED_LANGUAGES = [
+  { id: 'C++ / Arduino', name: '🤖 C++ / Arduino', defaultColor: '#4338ca' },
+  { id: 'HTML / CSS', name: '🌐 HTML / CSS', defaultColor: '#ea580c' },
+  { id: 'JavaScript', name: '⚡ JavaScript', defaultColor: '#ca8a04' },
+  { id: 'Python', name: '🐍 Python', defaultColor: '#0284c7' },
+  { id: 'Java', name: '☕ Java', defaultColor: '#b45309' },
+  { id: 'C#', name: '♯ C# (.NET)', defaultColor: '#059669' },
+  { id: 'SQL', name: '🗄️ SQL / Database', defaultColor: '#7c3aed' }
+];
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+// 5 Core Structural Categories
+const CORE_BLOCK_CATEGORIES = [
+  { 
+    id: 'statement', 
+    name: '⚡ בלוק פקודה בודדת / פעולה (Action Statement)', 
+    desc: 'בלוק פקודה קלאסי (שקע עליון ותחתון) לביצוע פעולה, קוד HTML או סקריפט',
+    defaultColor: '#ea580c'
+  },
+  { 
+    id: 'value_input', 
+    name: '🔌 בלוק מקבל מידע ומחזיר ערך (Value + Port Input)', 
+    desc: 'שן יציאה משמאל (מחזיר ערך) + שקע קלט מימין לקבלת פורט/פין (לחיישני חומרה)',
+    defaultColor: '#4338ca'
+  },
+  { 
+    id: 'multi_input', 
+    name: '📊 בלוק תצוגה / פלט מרובה (Multi-Input Display Block)', 
+    desc: 'בלוק פקודה המכיל מספר שורות קלט מימין (להצגת נתונים/חיישנים)',
+    defaultColor: '#059669'
+  },
+  { 
+    id: 'function_def', 
+    name: '📦 בלוק הגדרת פונקציה / מיכל קוד (Function Container)', 
+    desc: 'בלוק עטוף המכיל חלל פנימי לרצף בלוקים שמבוצעים יחד',
+    defaultColor: '#7e22ce'
+  },
+  { 
+    id: 'function_call', 
+    name: '📞 בלוק קריאה לפונקציה (Function Call Block)', 
+    desc: 'בלוק פקודה בודד שמפעיל פונקציה שהוגדרה מראש',
+    defaultColor: '#9333ea'
+  }
+];
+
+const COLOR_SWATCHES = [
+  { name: 'כתום HTML', value: '#ea580c' },
+  { name: 'סגול פונקציות', value: '#7e22ce' },
+  { name: 'כחול חיישנים', value: '#4338ca' },
+  { name: 'ירוק תצוגה', value: '#059669' },
+  { name: 'צהוב מנועים', value: '#d97706' },
+  { name: 'אינדיגו סטודיו', value: '#4f46e5' }
+];
+
+// Extract Clean Title from Raw Code or Prompt
+function extractCleanBlockTitle(prompt, language) {
+  // Check if prompt contains <title> tag
+  const titleMatch = prompt.match(/<title>(.*?)<\/title>/i);
+  if (titleMatch && titleMatch[1]) {
+    return `🌐 ${titleMatch[1].trim()}`;
+  }
+
+  // Check if prompt starts with raw code
+  if (prompt.includes('<!DOCTYPE') || prompt.includes('<html') || prompt.includes('<div') || prompt.includes('<form')) {
+    return '🌐 אפליקציית HTML/CSS מותאמת';
+  }
+
+  if (prompt.includes('def ') || prompt.includes('import ')) {
+    return '🐍 סקריפט Python מותאם';
+  }
+
+  if (prompt.includes('function') || prompt.includes('const ') || prompt.includes('let ')) {
+    return '⚡ פונקציית JavaScript';
+  }
+
+  return prompt.length > 28 ? prompt.substring(0, 28) + '...' : prompt;
 }
 
-const database = firebase.database();
+// Universal AI Multi-Line Code Synthesizer
+function synthesizeAICode(prompt, language) {
+  // If user provided raw full code directly in prompt (HTML/Python/JS), use it directly!
+  if (prompt.includes('<!DOCTYPE') || prompt.includes('<html') || prompt.includes('<div') || prompt.includes('def ') || prompt.includes('function')) {
+    // Strip user's instruction prefix if present (e.g. "צור לי בלוק שמתאים לכל הקוד...")
+    let cleanCode = prompt;
+    const codeStartIdx = prompt.search(/(<!DOCTYPE|<html|<div|<form|def |function |public class)/i);
+    if (codeStartIdx >= 0) {
+      cleanCode = prompt.substring(codeStartIdx);
+    }
+    // Remove trailing instruction text after code
+    const instructIdx = cleanCode.lastIndexOf('צור לי בלוק');
+    if (instructIdx > 0) {
+      cleanCode = cleanCode.substring(0, instructIdx).trim();
+    }
+    return cleanCode;
+  }
 
-function CodeToBlock({
-  initialXml
-}) {
-  const blocklyDiv = useRef(null);
-  const blocklyArea = useRef(null);
-  const [generatedCode, setGeneratedCode] = useState('');
-  const [workspace, setWorkspace] = useState(null);
-  const [toolboxConfiguration, setToolboxConfiguration] = useState(null);
-  const [isEditorVisible, setIsEditorVisible] = useState(false);
-  const [filename, setFilename] = useState('arduino_code.ino');
-  const saveWorkspaceRef = useRef(null);
-  const [showNewBlockForm, setShowNewBlockForm] = useState(false);
-  const [newBlockName, setNewBlockName] = useState('');
-  const [newBlockColor, setNewBlockColor] = useState('#4286f4');
-  const [newBlockTooltip, setNewBlockTooltip] = useState('');
-  const [newBlockCode, setNewBlockCode] = useState('');
-  const [newCategoryName, setNewCategoryName] = useState('My Category');
-  const [categoryOptions, setCategoryOptions] = useState([]);
-const [selectedCategory, setSelectedCategory] = useState(''); // הקטגוריה שנבחרה
-const [newCategory, setNewCategory] = useState(''); // הקטגוריה שתיכתב על ידי המשתמש
-  const isInitialMount = useRef(true);
-
-const baseCode = `
-#include <Arduino.h>
-uint8_t  LEDArray[8];
-const int left_ctrl = 4;//define the direction control pin of A motor
-const int left_pwm = 6;//define the speed control of A motor
-const int right_ctrl = 2;//define the direction control pin of B motor 
-const int right_pwm = 5;//define the speed control pin of B motor 
-#include <IRremote.h>//function library of IR remote control
-int RECV_PIN = 3;//set the pin of IR receiver to D3
-IRrecv irrecv(RECV_PIN);
-long irr_val;
-decode_results results;
-const int speedIncrement = 10; 
-char currentDirection = 'S';
-uint8_t matrix_heart[8] = {0xCC, 0x33, 0x03, 0x03, 0x84, 0x48, 0x30, 0x00};
-uint8_t matrix_smile[8] = {0x84, 0x4B, 0x4B, 0x00, 0x00, 0x48, 0x30, 0x00};
-uint8_t matrix_front2[8]={0x18,0x24,0x42,0x99,0x24,0x42,0x81,0x00};
-uint8_t matrix_back2[8]={0x00,0x81,0x42,0x24,0x99,0x42,0x24,0x18};
-uint8_t matrix_left2[8]={0x12,0x24,0x48,0x90,0x90,0x48,0x24,0x12};
-uint8_t matrix_right2[8]={0x48,0x24,0x12,0x09,0x09,0x12,0x24,0x48};
-uint8_t matrix_stop2[8]={0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x18};
-// **GLOBAL_VARIABLES** 
-
-void setup() {
- pinMode(left_ctrl,OUTPUT);//
-  pinMode(left_pwm,OUTPUT);//
-  pinMode(right_ctrl,OUTPUT);//
-  pinMode(right_pwm,OUTPUT);//
-    Serial.begin(115200);//
-  // In case the interrupt driver crashes on setup, give a clue
-  // to the user what's going on.
-  Serial.println("Enabling IRin");
-  irrecv.enableIRIn(); // Start the receiver
-  Serial.println("Enabled IRin");
-  matrix.begin(0x70); // כתובת I2C ברירת מחדל
-  matrix.clear();
+  const p = prompt.toLowerCase();
   
-  // **SETUP_CODE**  
-}
-
-void loop() {
-  if (irrecv.decode(&results)) {
-
-    
-  // **LOOP_CODE** 
-
-
- irrecv.resume(); // קבלת הפקודה הבאה
-    delay(100);
-} 
-
-}
-
-
-void applyCurrentDirection() {
-  // פונקציה שמפעילה את הכיוון הנוכחי עם המהירות הנוכחית
-  switch (currentDirection) {
-    case 'F':
-      car_front(speedleft, speedright);
-      break;
-    case 'B':
-      car_back(speedleft, speedright);
-      break;
-    case 'L':
-      car_left(speedleft, speedright);
-      break;
-    case 'R':
-      car_right(speedleft, speedright);
-      break;
-    case 'S':
-      car_Stop(speedleft, speedright);
-      break;
-  }
-}
-
-
-void car_front(int speed1 , int speed2)//define the state of going front
-{
-  digitalWrite(left_ctrl,HIGH);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,HIGH);
-  analogWrite(right_pwm,speed2);
-}
-
-void car_back(int speed1 , int speed2)//define the status of going back
-{
-  digitalWrite(left_ctrl,LOW);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,LOW);
-  analogWrite(right_pwm,speed2);
-}
-
-void car_left(int speed1 , int speed2)//set the status of left turning
-{
-  digitalWrite(left_ctrl,LOW);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,HIGH);
-  analogWrite(right_pwm,speed2);
-}
-
-void car_right(int speed1 , int speed2)//set the status of right turning
-{
-  digitalWrite(left_ctrl,HIGH);
-  analogWrite(left_pwm,speed1);
-  digitalWrite(right_ctrl,LOW);
-  analogWrite(right_pwm,speed2);
-}
-
-void car_Stop(int speed1 , int speed2)//define the state of stop
-{
-  digitalWrite(left_ctrl,LOW);
-  analogWrite(left_pwm,0);
-  digitalWrite(right_ctrl,LOW);
-  analogWrite(right_pwm,0);
-}
-
-void matrix_display(unsigned char matrix_value[]) {
-  matrix.clear(); // מנקה את התצוגה לפני שמציירים משהו חדש
-
-  for (int i = 0; i < 8; i++) {
-    unsigned char row = matrix_value[i]; // מקבל את הערך של השורה הנוכחית
-
-    for (int j = 0; j < 8; j++) { // שיניתי את הסדר של הלולאה כדי להתאים לספרייה
-      if (row & 0x01) { // בודק אם הביט הכי פחות משמעותי דולק
-        matrix.drawPixel(j, i, LED_ON); // מצייר פיקסל דולק במיקום (j, i)
-      }
-      row >>= 1; // מזיז את הביטים ימינה כדי לבדוק את הביט הבא
+  if (language === 'HTML / CSS' || p.includes('html') || p.includes('טופס') || p.includes('תמונה') || p.includes('אתר')) {
+    if (p.includes('טופס') || p.includes('הרשמה') || p.includes('form')) {
+      return `<form class="smart-signup-form" action="/submit" method="POST">
+  <h2>טופס הרשמה אינטראקטיבי</h2>
+  <div className="form-group">
+    <label>שם מלא:</label>
+    <input type="text" name="fullname" placeholder="הכנס שם מלא..." required />
+  </div>
+  <div className="form-group">
+    <label>כתובת אימייל:</label>
+    <input type="email" name="email" placeholder="name@example.com" required />
+  </div>
+  <button type="submit" class="submit-btn">הרשם עכשיו 🚀</button>
+</form>`;
+    } else if (p.includes('תמונה') || p.includes('קובץ') || p.includes('upload')) {
+      return `<div className="image-uploader-box">
+  <label for="imgInput" class="upload-label">📁 בחר תמונה להעלאה:</label>
+  <input type="file" id="imgInput" accept="image/*" onchange="previewImage(event)" />
+  <div id="previewContainer"></div>
+</div>`;
+    } else {
+      return `<div className="custom-card-widget">
+  <h3 className="card-title">${prompt}</h3>
+  <p className="card-text">תוכן אינטראקטיבי שנוצר ב-HTML/CSS</p>
+  <button class="btn-primary">לחץ כאן</button>
+</div>`;
     }
   }
 
-  matrix.writeDisplay(); // מעדכן את התצוגה עם הפיקסלים שצוירו
+  if (language === 'Python' || p.includes('python') || p.includes('פייתון')) {
+    return `import requests
+
+def download_image_from_url(image_url="https://example.com/image.jpg"):
+    try:
+        response = requests.get(image_url, timeout=10)
+        if response.status_code == 200:
+            with open("downloaded.jpg", 'wb') as f:
+                f.write(response.content)
+            print("Image saved successfully!")
+            return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False`;
+  }
+
+  if (language === 'JavaScript' || p.includes('javascript') || p.includes('js')) {
+    return `function showInteractiveAlert(message = "${prompt}") {
+  alert("✨ הודעה: " + message);
+  console.log("Alert displayed:", message);
+}`;
+  }
+
+  return `// ${prompt}
+void handleCustomHardwareAction() {
+  int sensorVal = analogRead(A0);
+  if (sensorVal > 500) {
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+}`;
 }
-// **FUNCTION_DEFINITIONS** 
-`;
 
-  const resizeBlocklyDiv = () => {
-    if (blocklyDiv.current && blocklyArea.current && workspace) {
-      blocklyDiv.current.style.width = blocklyArea.current.offsetWidth + 'px';
-      blocklyDiv.current.style.height = blocklyArea.current.offsetHeight + 'px';
-      Blockly.svgResize(workspace);
-    }
-  };
-
-
-
-  
-const createDynamicBlock = useCallback((blockName, blockData) => {
-  if (!blockName || !blockData) {
-    console.warn("Invalid block data received. Skipping block creation.");
-    return;
-  }
-
-  Blockly.Blocks[blockName] = {
-    init: function() {
-      this.appendDummyInput().appendField(blockData.name || blockName);
-      this.setTooltip(blockData.tooltip || '');
-      this.setColour(blockData.colour || 210);
-
-      // הוסף סוגים נוספים של כניסות אם יש לך כאלה בנתונים שלך.
-    
-      this.setPreviousStatement(blockData.previousStatement !== undefined ? blockData.previousStatement : true);
-      this.setNextStatement(blockData.nextStatement !== undefined ? blockData.nextStatement : true);
-      this.setOutput(blockData.output !== undefined ? blockData.output : false, blockData.outputType || null);
-    },
-  };
-
-  if (blockData.code) {
-    javascriptGenerator.forBlock[blockName] = function(block) {
-      return blockData.code;
-    };
-  }
-}, []);
-
-
-
-
-
-
-  const loadBlocksFromFirebase = useCallback(async () => {
-    try {
-      const ref = firebase.database().ref(`categories`);
-      const snapshot = await ref.once('value');
-      const categories = snapshot.val();
-
-      if (categories) {
-        Object.entries(categories).forEach(([categoryName, categoryData]) => {
-          if (categoryData && categoryData.blocks) {
-            Object.entries(categoryData.blocks).forEach(([blockName, blockData]) => {
-              if (!Blockly.Blocks[blockName]) {
-                console.log('Creating block', blockName, 'with data', blockData);
-                createDynamicBlock(blockName, blockData);
-              }
-            });
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Error loading blocks from Firebase:', error);
-    }
-  }, [createDynamicBlock]);
-
-
-
-
-
-  const createToolboxConfiguration = useCallback((categoriesData) => {
-    const toolbox = {
-      "kind": "categoryToolbox",
-      "contents": []
-    };
-
-    if (categoriesData) {
-      Object.entries(categoriesData).forEach(([categoryName, categoryData]) => {
-        if (categoryData && categoryData.blocks) {
-          const category = {
-            "kind": "category",
-            "name": categoryName.replace(/_/g, ' '),
-            "contents": Object.entries(categoryData.blocks).map(([blockName, blockData]) => ({
-              "kind": "block",
-              "type": blockName
-            }))
-          };
-          toolbox.contents.push(category);
-        }
-      });
-    }
-
-    return toolbox;
-  }, []);
-
-
-
-
-  const initializeBlockly = useCallback(async (toolbox) => {
-    try {
-      if (!toolbox) {
-        alert('Toolbox configuration not loaded yet. Waiting...');
-        return;
-      }
-
-      if (!workspace && blocklyDiv.current) {
-        const ws = Blockly.inject(blocklyDiv.current, {
-          toolbox: toolbox,
-          scrollbars: true,
-        });
-        setWorkspace(ws);
-      }
-
-      const ws = workspace;
-      if (!ws) return;
-
-      if (initialXml) {
-        try {
-          const xml = Blockly.Xml.textToDom(initialXml);
-          Blockly.Xml.domToWorkspace(xml, ws);
-        } catch (err) {
-          console.error('שגיאה בטעינת ה XML:', err);
-        }
-      }
-
-      const generateCode = () => {
-        if (ws) {
-          let code = javascriptGenerator.workspaceToCode(ws);
-          setGeneratedCode(code);
-        }
-      };
-      ws.addChangeListener(() => {
-        generateCode();
-      });
-
-      window.addEventListener('resize', resizeBlocklyDiv);
-      resizeBlocklyDiv();
-
-      return () => {
-        window.removeEventListener('resize', resizeBlocklyDiv);
-        if (ws) {
-          ws.dispose();
-        }
-      };
-    } catch (error) {
-      console.error('שגיאה באתחול Blockly:', error);
-    }
-  }, [initialXml, workspace]);
-    const fetchToolboxConfiguration = useCallback(async () => {
-        try {
-            const response = await fetch('toolbox.json');
-            const data = await response.json();
-            return data
-        } catch (error) {
-            console.error('Error loading toolbox:', error);
-        }
-    }, []);
-
-
-
+// =============================================================
+// COMPONENT: LIVE REAL SVG BLOCKLY BLOCK PREVIEW
+// =============================================================
+function LiveBlockPreview({ blockData }) {
+  const previewDivRef = useRef(null);
+  const previewWorkspaceRef = useRef(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await loadBlocksFromFirebase();
+    if (!blockData || !previewDivRef.current) return;
 
-        const snapshot = await firebase.database().ref(`categories`).once('value');
-        const categoriesData = snapshot.val() || {};
-        const finalToolboxConfiguration = createToolboxConfiguration(categoriesData);
-        initializeBlockly(finalToolboxConfiguration);
-      } catch (error) {
-        console.error("Error during initialization:", error);
+    registerSingleBlock(blockData);
+
+    if (previewWorkspaceRef.current) {
+      try {
+        previewWorkspaceRef.current.dispose();
+        previewWorkspaceRef.current = null;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    try {
+      const ws = Blockly.inject(previewDivRef.current, {
+        readOnly: false,
+        scrollbars: false,
+        trashcan: false,
+        zoom: { controls: false, wheel: false, startScale: 1.1 }
+      });
+
+      ws.clear();
+      const newBlock = ws.newBlock(blockData.id);
+      newBlock.initSvg();
+      newBlock.render();
+      newBlock.moveBy(25, 25);
+
+      previewWorkspaceRef.current = ws;
+    } catch (err) {
+      console.error('Failed to render live block preview:', err);
+    }
+
+    return () => {
+      if (previewWorkspaceRef.current) {
+        try {
+          previewWorkspaceRef.current.dispose();
+          previewWorkspaceRef.current = null;
+        } catch (e) {}
       }
     };
+  }, [blockData]);
 
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      fetchData();
-    }
-  }, [createToolboxConfiguration, initializeBlockly, loadBlocksFromFirebase]);
+  if (!blockData) return null;
 
+  const typeMatched = CORE_BLOCK_CATEGORIES.find(c => c.id === blockData.type);
 
-
-
-
-    useEffect(() => {
-        if (blocklyDiv.current && workspace) {
-            resizeBlocklyDiv();
-        }
-    }, [workspace]);
-
-    const handleDownload = () => {
-        const blob = new Blob([generatedCode], {
-            type: 'text/plain'
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename; // Use the filename from the state
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
-
-    const toggleEditorVisibility = () => {
-        setIsEditorVisible(!isEditorVisible);
-    };
-    const saveWorkspaceButtonClick = () => {
-        saveWorkspaceRef.current();
-        alert('Workspace saved!');
-    };
-
-
-
-
-
-
-   const saveBlockToFirebase = useCallback(async (blockData, categoryId) => {
-  try {
-    const categoryRef = database.ref(`categories/${categoryId}`);
-    const snapshot = await categoryRef.once('value');
-
-    // בודק אם הקטגוריה קיימת
-    if (!snapshot.exists()) {
-      // יוצרת את הקטגוריה אם לא קיימת
-      await categoryRef.set({ blocks: {} });
-    }
-
-    // שומר את הבלוק בתוך הקטגוריה
-    const blockId = blockData.name.replace(/\s+/g, '_');
-    await categoryRef.child(`blocks/${blockId}`).set(blockData);
-
-    console.log('Block saved to Firebase');
-  } catch (error) {
-    console.error('Error saving block to Firebase:', error);
-  }
-}, []);
-
-
-
-
-
-    const handleNewBlockNameChange = (event) => {
-        setNewBlockName(event.target.value);
-    };
-
-    const handleNewBlockColorChange = (event) => {
-        setNewBlockColor(event.target.value);
-    };
-
-    const handleNewBlockTooltipChange = (event) => {
-        setNewBlockTooltip(event.target.value);
-    };
-
-    const handleNewBlockCodeChange = (event) => {
-        setNewBlockCode(event.target.value);
-    };
-
-    const handleNewCategoryNameChange = (event) => {
-        setNewCategoryName(event.target.value);
-    };
-
-
-
-
-
-   const createNewBlock = useCallback(async () => {
-  if (newBlockName && newBlockCode && (newCategory.trim() || selectedCategory)) {
-    const categoryId = newCategory.trim()
-      ? newCategory.replace(/\s+/g, '_')
-      : selectedCategory.replace(/\s+/g, '_');
-
-    const blockData = {
-      name: newBlockName,
-      tooltip: newBlockTooltip,
-      colour: newBlockColor,
-      code: newBlockCode,
-    };
-
-    await saveBlockToFirebase(blockData, categoryId);
-
-    // איפוס שדות
-    setNewBlockName('');
-    setNewBlockColor('#4286f4');
-    setNewBlockTooltip('');
-    setNewBlockCode('');
-    setNewCategory('');
-    setSelectedCategory('');
-    setShowNewBlockForm(false);
-  } else {
-    alert('יש למלא את כל השדות');
-  }
-}, [newBlockName, newBlockColor, newBlockTooltip, newBlockCode, newCategory, selectedCategory, saveBlockToFirebase]);
-
-
-
-
-    const toggleNewBlockForm = () => {
-        setShowNewBlockForm(!showNewBlockForm);
-    };
-
-
-
-
-
-
-
-    return (
-        <div
-            style={{
-                width: '100%',
-                height: '800px',
-                display: 'flex',
-                flexDirection: 'column',
-            }}
-        >
-            <div style={{
-                width: '100%',
-                flex: 1,
-                overflow: 'auto'
-            }}>
-
-            </div>
-
-            <div
-                ref={blocklyDiv}
-                id="blocklyDiv"
-                style={{
-                    width: '100%',
-                    height: '7000px',
-                    position: 'relative',
-                    zIndex: 2,
-                }}
-            ></div>
-
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '100px'
-            }}>
-                <label htmlFor="filename" style={{
-                    marginRight: '5px',
-                    marginTop: '10px',
-                }}>שם קובץ:</label>
-                <input
-                    type="text"
-                    id="filename"
-                    value={filename}
-                    onChange={(e) => setFilename(e.target.value)}
-                    style={{
-                        marginRight: '10px',
-                        marginTop: '10px',
-                        padding: '8px',
-                        fontSize: '14px',
-                        borderRadius: '5px',
-                        border: '1px solid #ccc',
-                    }}
-                />
-                <button
-                    onClick={handleDownload}
-                    style={{
-                        backgroundColor: '#4CAF50',
-                        border: 'none',
-                        color: 'white',
-                        padding: '8px 16px',
-                        textAlign: 'center',
-                        textDecoration: 'none',
-                        display: 'inline-block',
-                        marginTop: '10px',
-                        fontSize: '14px',
-                        marginRight: '10px',
-                        cursor: 'pointer',
-                        borderRadius: '5px',
-                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-                        transition: 'background-color 0.3s ease',
-                    }}
-                >
-                    הורד קוד
-                </button>
-                <button
-                    onClick={toggleEditorVisibility}
-                    style={{
-                        backgroundColor: '#2196F3',
-                        border: 'none',
-                        color: 'white',
-                        padding: '8px 16px',
-                        textAlign: 'center',
-                        textDecoration: 'none',
-                        display: 'inline-block',
-                        fontSize: '14px',
-                        marginRight: '10px',
-                        marginTop: '10px',
-                        cursor: 'pointer',
-                        borderRadius: '5px',
-                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-                        transition: 'background-color 0.3s ease',
-                    }}
-                >
-                    {isEditorVisible ? 'הסתר קוד' : 'הצג קוד'}
-                </button>
-                <button
-                    onClick={saveWorkspaceButtonClick}
-                    style={{
-                        backgroundColor: '#007BFF',
-                        border: 'none',
-                        color: 'white',
-                        padding: '8px 16px',
-                        textAlign: 'center',
-                        textDecoration: 'none',
-                        display: 'inline-block',
-                        marginTop: '10px',
-                        fontSize: '14px',
-                        cursor: 'pointer',
-                        borderRadius: '5px',
-                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-                        transition: 'background-color 0.3s ease',
-                    }}
-                >
-                    שמור Workspace
-                </button>
-            </div>
-            {isEditorVisible && (
-                <MonacoEditor
-                    key={generatedCode}
-                    width="100%"
-                    height="6000px"
-                    language="arduino"
-                    theme="vs-light"
-                    value={generatedCode}
-                    options={{
-                        selectOnLineNumbers: true,
-                        readOnly: false,
-                        wordWrap: 'on',
-                        wrappingIndent: 'deepIndent'
-                    }}
-                    style={{
-                        zIndex: 1
-                    }}
-                />
-            )}
-
-            
-            {/* טופס ליצירת בלוקים */}
-            <button
-                onClick={toggleNewBlockForm}
-                style={{
-                    backgroundColor: '#673ab7',
-                    color: 'white',
-                    padding: '8px 16px',
-                    textAlign: 'center',
-                    textDecoration: 'none',
-                    display: 'inline-block',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    borderRadius: '5px',
-                    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-                    transition: 'background-color 0.3s ease',
-                    marginBottom: '10px',
-                }}
-            >
-                {showNewBlockForm ? 'הסתר יצירת בלוק חדש' : 'הצג יצירת בלוק חדש'}
-            </button>
-            {showNewBlockForm && (
-                <div style={{
-                    width: '100%',
-                    padding: '20px',
-                    backgroundColor: '#f0f0f0',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    marginBottom: '20px',
-                }}>
-                    <h3>יצירת בלוק חדש</h3>
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '5px'
-                        }}>שם הבלוק:</label>
-                        <input
-                            type="text"
-                            value={newBlockName}
-                            onChange={handleNewBlockNameChange}
-                            style={{
-                                width: '100%',
-                                padding: '8px',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '5px'
-                        }}>שם הקטגוריה:</label>
-                        <input
-                            type="text"
-                            value={newCategoryName}
-                            onChange={handleNewCategoryNameChange}
-                            style={{
-                                width: '100%',
-                                padding: '8px',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '5px'
-                        }}>צבע הבלוק:</label>
-                        <input
-                            type="color"
-                            value={newBlockColor}
-                            onChange={handleNewBlockColorChange}
-                            style={{
-                                width: '100%',
-                                padding: '8px',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '5px'
-                        }}>Tooltip:</label>
-                        <input
-                            type="text"
-                            value={newBlockTooltip}
-                            onChange={handleNewBlockTooltipChange}
-                            style={{
-                                width: '100%',
-                                padding: '8px',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '5px'
-                        }}>קוד:</label>
-                        <textarea
-                            value={newBlockCode}
-                            onChange={handleNewBlockCodeChange}
-                            style={{
-                                width: '100%',
-                                height: '100px',
-                                padding: '8px',
-                                boxSizing: 'border-box',
-                                resize: 'vertical'
-                            }}
-                        />
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px' }}>בחר קטגוריה קיימת או הוסף אחת חדשה:</label>
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => {
-                                setSelectedCategory(e.target.value);
-                                setNewCategory('');
-                            }}
-                            style={{ width: '100%', padding: '8px', marginBottom: '10px' }}
-                        >
-                            <option value="">-- בחר קטגוריה קיימת --</option>
-                            {categoryOptions.map((cat) => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </select>
-                        <label style={{ display: 'block', marginBottom: '5px' }}>או הקלד קטגוריה חדשה:</label>
-                        <input
-                            type="text"
-                            placeholder="שם הקטגוריה החדשה"
-                            onChange={(e) => {
-                                setNewCategory(e.target.value);
-                                setSelectedCategory(''); // נקה את הקטגוריה שנבחרה
-                            }}
-                            value={newCategory}
-                            style={{ width: '100%', padding: '8px', marginBottom: '10px' }}
-                        />
-</div>
-                    <button
-                        onClick={createNewBlock}
-                        style={{
-                            backgroundColor: '#4CAF50',
-                            color: 'white',
-                            padding: '10px 20px',
-                            border: 'none',
-                            borderRadius: '5px',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        צור בלוק
-                    </button>
-                </div>
-            )}
+  return (
+    <div style={{
+      background: '#ffffff',
+      borderRadius: '16px',
+      border: '1.5px solid #cbd5e1',
+      padding: '20px',
+      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+      marginTop: '20px'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <h4 style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a' }}>
+          🧩 תצוגת הבלוק הפיזית ב-Blockly (Real Physical SVG Shape):
+        </h4>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '12px', background: '#e0e7ff', color: '#4f46e5', fontWeight: 'bold' }}>
+            שפה: {blockData.language || 'C++ / Arduino'}
+          </span>
+          <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '12px', background: '#f1f5f9', color: '#334155', fontWeight: 'bold' }}>
+            סוג: {typeMatched ? typeMatched.name.split(' ')[1] : blockData.type}
+          </span>
         </div>
-    );
+      </div>
+
+      {/* SVG Workspace Canvas Preview */}
+      <div 
+        ref={previewDivRef} 
+        style={{
+          width: '100%',
+          height: '160px',
+          background: '#f8fafc',
+          borderRadius: '12px',
+          border: '1px solid #e2e8f0',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      ></div>
+
+      {/* Dynamic Multi-line Code Snippet per Selected Language */}
+      <div style={{ marginTop: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>
+            💻 קוד <span style={{ color: '#4f46e5', fontWeight: '800' }}>{blockData.language || 'C++ / Arduino'}</span> שייווצר מהבלוק:
+          </label>
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+            {(blockData.code || '').split('\n').length} שורות קוד
+          </span>
+        </div>
+        <div style={{ background: '#0f172a', padding: '14px 18px', borderRadius: '12px', direction: 'ltr', textAlign: 'left', maxHeight: '220px', overflowY: 'auto' }}>
+          <pre style={{ margin: 0, fontSize: '0.85rem', color: '#38bdf8', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+            {blockData.code || '// No code defined'}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// MAIN STUDIO COMPONENT
+// =============================================================
+function CodeToBlock() {
+  const [activeTab, setActiveTab] = useState('ai');
+  const [selectedLanguage, setSelectedLanguage] = useState('C++ / Arduino');
+
+  // Projects State
+  const [projects, setProjects] = useState(() => {
+    const saved = localStorage.getItem('codetoblock_projects');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'proj_default',
+        name: 'פרויקט פיתוח מולטי-שפתי',
+        description: 'אוסף בלוקים מותאמים אישית לשפת C++, HTML, Java, Python ו-JS',
+        category: 'Multi-Language',
+        blocks: [
+          {
+            id: 'html_signup_form',
+            name: '🖼️ טופס הרשמה (HTML)',
+            type: 'statement',
+            color: '#ea580c',
+            tooltip: 'רכיב טופס הרשמה מלא ב-HTML',
+            code: `<form class="signup-form">\n  <label>שם:</label>\n  <input type="text" name="name" />\n  <button type="submit">הרשם</button>\n</form>`,
+            category: 'HTML / Web',
+            language: 'HTML / CSS',
+            createdAt: '2026-07-30'
+          }
+        ]
+      }
+    ];
+  });
+
+  const [activeProjectId, setActiveProjectId] = useState('proj_default');
+
+  // AI Generator Agent State
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBlockType, setAiBlockType] = useState('statement');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiLog, setAiLog] = useState('');
+
+  // Active Preview Block Data
+  const [activePreviewBlock, setActivePreviewBlock] = useState(null);
+
+  // Manual Designer Advanced State
+  const [manualName, setManualName] = useState('');
+  const [manualType, setManualType] = useState('statement');
+  const [manualLanguage, setManualLanguage] = useState('C++ / Arduino');
+  const [manualColor, setManualColor] = useState('#4338ca');
+  const [manualInputLabel, setManualInputLabel] = useState('מספר פורט');
+  const [manualLinesCount, setManualLinesCount] = useState(2);
+  const [manualHasFieldInput, setManualHasFieldInput] = useState(false);
+  const [manualFieldDefault, setManualFieldDefault] = useState('100');
+  const [manualTooltip, setManualTooltip] = useState('');
+  const [manualCode, setManualCode] = useState('');
+  const [manualCategory, setManualCategory] = useState('כללי');
+
+  useEffect(() => {
+    registerAllBlocks();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('codetoblock_projects', JSON.stringify(projects));
+  }, [projects]);
+
+  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
+
+  // AI Block Generator Agent
+  const handleAIGenerate = (promptToUse) => {
+    const prompt = promptToUse || aiPrompt;
+    if (!prompt.trim()) {
+      alert('נא להזין תיאור או קוד לבלוק שתרצה ליצור!');
+      return;
+    }
+
+    setIsGenerating(true);
+    setAiLog(`🤖 מנתח את הקוד/פרומפט ומזהה שפה ומבנה...`);
+
+    setTimeout(() => {
+      let detectedLang = selectedLanguage;
+      if (prompt.includes('<!DOCTYPE') || prompt.includes('<html') || prompt.includes('<div') || prompt.includes('HTML') || prompt.includes('אתר')) {
+        detectedLang = 'HTML / CSS';
+      } else if (prompt.includes('def ') || prompt.includes('Python')) {
+        detectedLang = 'Python';
+      } else if (prompt.includes('function') || prompt.includes('JavaScript') || prompt.includes('JS')) {
+        detectedLang = 'JavaScript';
+      }
+
+      // Auto-detect block type: Raw code or web blocks default to 'statement' (No Port Number!)
+      let finalBlockType = aiBlockType;
+      const isRawCode = prompt.includes('<!DOCTYPE') || prompt.includes('<html') || prompt.includes('<div') || prompt.includes('def ');
+      if (isRawCode || detectedLang === 'HTML / CSS' || detectedLang === 'JavaScript' || detectedLang === 'Python') {
+        if (aiBlockType === 'value_input') {
+          finalBlockType = 'statement';
+        }
+      }
+
+      setAiLog(`⚙️ מפיק קוד ${detectedLang} ונקה שדות חומרה...`);
+
+      setTimeout(() => {
+        const generatedId = `ai_block_${Date.now()}`;
+        const cleanTitle = extractCleanBlockTitle(prompt, detectedLang);
+        const generatedCodeSnippet = synthesizeAICode(prompt, detectedLang);
+
+        const defaultColor = detectedLang === 'HTML / CSS' ? '#ea580c' : detectedLang === 'Python' ? '#0284c7' : detectedLang === 'JavaScript' ? '#ca8a04' : '#4f46e5';
+
+        const newBlock = {
+          id: generatedId,
+          name: cleanTitle,
+          type: finalBlockType,
+          color: defaultColor,
+          hasFieldInput: false,
+          tooltip: `בלוק AI בשפת ${detectedLang}: ${cleanTitle}`,
+          code: generatedCodeSnippet,
+          category: detectedLang,
+          language: detectedLang,
+          createdAt: new Date().toLocaleDateString('he-IL')
+        };
+
+        addBlockToRegistry(newBlock);
+
+        setProjects(prev => prev.map(p => {
+          if (p.id === activeProjectId) {
+            return { ...p, blocks: [newBlock, ...(p.blocks || [])] };
+          }
+          return p;
+        }));
+
+        setActivePreviewBlock(newBlock);
+        setIsGenerating(false);
+        setAiLog('');
+        setAiPrompt('');
+      }, 700);
+    }, 600);
+  };
+
+  // Live Manual Preview Update
+  useEffect(() => {
+    if (activeTab === 'manual' && manualName.trim()) {
+      const tempBlock = {
+        id: 'manual_preview_temp',
+        name: manualName,
+        type: manualType,
+        color: manualColor,
+        inputLabel: manualInputLabel,
+        inputLinesCount: manualLinesCount,
+        hasFieldInput: manualHasFieldInput,
+        fieldDefault: manualFieldDefault,
+        tooltip: manualTooltip,
+        code: manualCode,
+        category: manualCategory,
+        language: manualLanguage
+      };
+      setActivePreviewBlock(tempBlock);
+    }
+  }, [manualName, manualType, manualColor, manualInputLabel, manualLinesCount, manualHasFieldInput, manualFieldDefault, manualTooltip, manualCode, manualCategory, manualLanguage, activeTab]);
+
+  // Manual Block Handler
+  const handleManualCreate = () => {
+    if (!manualName.trim()) {
+      alert('נא להזין שם לבלוק!');
+      return;
+    }
+    const newBlock = {
+      id: `manual_block_${Date.now()}`,
+      name: manualName,
+      type: manualType,
+      color: manualColor,
+      inputLabel: manualInputLabel,
+      inputLinesCount: manualLinesCount,
+      hasFieldInput: manualHasFieldInput,
+      fieldDefault: manualFieldDefault,
+      tooltip: manualTooltip || 'בלוק מותאם אישית',
+      code: manualCode || '// Custom code\n',
+      category: manualCategory,
+      language: manualLanguage,
+      createdAt: new Date().toLocaleDateString('he-IL')
+    };
+
+    addBlockToRegistry(newBlock);
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === activeProjectId) {
+        return { ...p, blocks: [newBlock, ...(p.blocks || [])] };
+      }
+      return p;
+    }));
+
+    setManualName('');
+    setManualTooltip('');
+    setManualCode('');
+    alert(`🎉 הבלוק נוצר בהצלחה!`);
+    setActiveTab('library');
+  };
+
+  // Export Project Blocks to Main Studio
+  const handleExportToMainStudio = () => {
+    if (!activeProject || !activeProject.blocks.length) {
+      alert('אין בלוקים בפרויקט הנוכחי לייצוא!');
+      return;
+    }
+    localStorage.setItem('userCustomBlocks', JSON.stringify(activeProject.blocks));
+    alert(`🚀 ${activeProject.blocks.length} בלוקים מתוך הפרויקט "${activeProject.name}" ייוצאו בהצלחה לסביבות הפיתוח הראשיות!`);
+  };
+
+  // Delete Block Handler
+  const handleDeleteBlock = (blockId) => {
+    if (window.confirm('האם למחוק בלוק זה?')) {
+      setProjects(prev => prev.map(p => {
+        if (p.id === activeProjectId) {
+          return { ...p, blocks: p.blocks.filter(b => b.id !== blockId) };
+        }
+        return p;
+      }));
+    }
+  };
+
+  return (
+    <div className="codetoblock-wrapper">
+      {/* Header Bar */}
+      <div className="codetoblock-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a' }}>
+            🧩 מחולל הבלוקים החכם (CodeToBlock AI Studio)
+          </span>
+          <span style={{ fontSize: '0.8rem', padding: '4px 12px', borderRadius: '12px', background: '#e0e7ff', color: '#4f46e5', fontWeight: 'bold' }}>
+            פרויקט: {activeProject?.name}
+          </span>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="codetoblock-nav-tabs">
+          <button 
+            className={`codetoblock-tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ai')}
+          >
+            ✨ מחולל AI
+          </button>
+          <button 
+            className={`codetoblock-tab-btn ${activeTab === 'projects' ? 'active' : ''}`}
+            onClick={() => setActiveTab('projects')}
+          >
+            📁 ניהול פרויקטים
+          </button>
+          <button 
+            className={`codetoblock-tab-btn ${activeTab === 'manual' ? 'active' : ''}`}
+            onClick={() => setActiveTab('manual')}
+          >
+            🛠️ יוצר ידני
+          </button>
+          <button 
+            className={`codetoblock-tab-btn ${activeTab === 'library' ? 'active' : ''}`}
+            onClick={() => setActiveTab('library')}
+          >
+            📦 ספריית הבלוקים שלי ({activeProject?.blocks?.length || 0})
+          </button>
+        </div>
+
+        <div>
+          <button onClick={handleExportToMainStudio} className="builder-btn builder-btn-hero">
+            🚀 ייצא לסביבות הבלוקים הראשיות
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{ padding: '32px 24px', flex: 1, maxWidth: '1200px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        
+        {/* TAB 1: MULTI-LANGUAGE & STRUCTURAL AI GENERATOR */}
+        {activeTab === 'ai' && (
+          <div className="ai-generator-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a' }}>
+                ✨ סוכן AI ליצירת בלוקים בכל שפה, קוד מותאם ומבנה
+              </h2>
+
+              {/* Target Programming Language Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>שפת יעד:</span>
+                <select 
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="builder-select-box"
+                  style={{ background: '#f5f3ff', borderColor: '#818cf8', fontWeight: 'bold', color: '#4338ca' }}
+                >
+                  {SUPPORTED_LANGUAGES.map(lang => (
+                    <option key={lang.id} value={lang.id}>{lang.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Quick Suggestion Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+              <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 'bold', alignSelf: 'center' }}>הצעות מהירות:</span>
+              <button onClick={() => { setSelectedLanguage('HTML / CSS'); handleAIGenerate('צור בלוק HTML לבניית טופס הרשמה מלא עם שם ואימייל'); }} className="ai-suggestion-chip">
+                🖼️ HTML: טופס הרשמה מלא
+              </button>
+              <button onClick={() => { setSelectedLanguage('Python'); handleAIGenerate('צור בלוק Python שמוריד תמונה מכתובת URL ומקבל URL כקלט'); }} className="ai-suggestion-chip">
+                🐍 Python: הורדת תמונה מ-URL
+              </button>
+              <button onClick={() => { setSelectedLanguage('JavaScript'); handleAIGenerate('צור בלוק JS שמציג חלון התראה אינטראקטיבי'); }} className="ai-suggestion-chip">
+                ⚡ JS: חלון התראה
+              </button>
+            </div>
+
+            {/* Visual Structural Category Selector in AI Tab */}
+            <div style={{ marginBottom: '20px', background: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>
+                🧱 בחר את סוג המבנה של הבלוק:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
+                {CORE_BLOCK_CATEGORIES.map(cat => (
+                  <div 
+                    key={cat.id}
+                    onClick={() => setAiBlockType(cat.id)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: aiBlockType === cat.id ? `2px solid ${cat.defaultColor}` : '1px solid #cbd5e1',
+                      background: aiBlockType === cat.id ? '#f5f3ff' : '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{ fontWeight: '800', fontSize: '0.85rem', color: cat.defaultColor, marginBottom: '4px' }}>
+                      {cat.name}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: '1.3' }}>
+                      {cat.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Prompt Input Box */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
+              <textarea 
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="הדבק כאן קוד מלא (HTML/CSS/JS/Python/Java) או תיאור חופשי ליצירת בלוק מותאם..."
+                style={{
+                  flex: 1,
+                  padding: '14px 18px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '0.9rem',
+                  fontFamily: 'monospace',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  height: '70px',
+                  resize: 'vertical'
+                }}
+              />
+              <button 
+                onClick={() => handleAIGenerate()} 
+                disabled={isGenerating}
+                className="builder-btn builder-btn-hero"
+                style={{ padding: '14px 28px', fontSize: '0.95rem', flexShrink: 0, height: '70px' }}
+              >
+                {isGenerating ? '⏳ מייצר...' : '✨ צור בלוק ב-AI'}
+              </button>
+            </div>
+
+            {/* AI Log Progress Status */}
+            {aiLog && (
+              <div style={{ padding: '12px 18px', borderRadius: '10px', background: '#eff6ff', color: '#1e40af', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                {aiLog}
+              </div>
+            )}
+
+            {/* LIVE REAL SVG BLOCKLY BLOCK PREVIEW */}
+            {activePreviewBlock && (
+              <LiveBlockPreview blockData={activePreviewBlock} />
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: ADVANCED MANUAL BLOCK DESIGNER */}
+        {activeTab === 'manual' && (
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <div className="ai-generator-panel" style={{ flex: 1, minWidth: '340px', margin: 0 }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: '800', color: '#0f172a', marginBottom: '16px' }}>
+                🛠️ מעבדת יצירת בלוקים ידנית (Any Language & Code Length)
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>שם הבלוק:</label>
+                    <input 
+                      type="text" 
+                      value={manualName} 
+                      onChange={(e) => setManualName(e.target.value)} 
+                      className="builder-input-field" 
+                      style={{ width: '100%' }}
+                      placeholder="לדוגמה: טופס הרשמה ב-HTML / הדגמת קלט ופלט"
+                    />
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>שפת תכנות:</label>
+                    <select 
+                      value={manualLanguage} 
+                      onChange={(e) => setManualLanguage(e.target.value)} 
+                      className="builder-select-box"
+                      style={{ width: '100%', fontWeight: 'bold', color: '#4f46e5' }}
+                    >
+                      {SUPPORTED_LANGUAGES.map(lang => (
+                        <option key={lang.id} value={lang.id}>{lang.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>סוג מבנה הבלוק:</label>
+                  <select 
+                    value={manualType} 
+                    onChange={(e) => {
+                      setManualType(e.target.value);
+                      const matched = CORE_BLOCK_CATEGORIES.find(c => c.id === e.target.value);
+                      if (matched) setManualColor(matched.defaultColor);
+                    }} 
+                    className="builder-select-box"
+                    style={{ width: '100%', fontWeight: 'bold', color: '#4338ca' }}
+                  >
+                    {CORE_BLOCK_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* COLOR PALETTE SWATCHES */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '6px' }}>בחר צבע לבלוק:</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {COLOR_SWATCHES.map(swatch => (
+                      <button
+                        key={swatch.value}
+                        type="button"
+                        onClick={() => setManualColor(swatch.value)}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: swatch.value,
+                          border: manualColor === swatch.value ? '3px solid #0f172a' : '1px solid #cbd5e1',
+                          cursor: 'pointer',
+                          transform: manualColor === swatch.value ? 'scale(1.15)' : 'scale(1)'
+                        }}
+                        title={swatch.name}
+                      />
+                    ))}
+                    <input 
+                      type="color" 
+                      value={manualColor} 
+                      onChange={(e) => setManualColor(e.target.value)} 
+                      style={{ width: '36px', height: '30px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>
+                    קוד <span style={{ color: '#4f46e5', fontWeight: 'bold' }}>{manualLanguage}</span> (בכל אורך שתרצה):
+                  </label>
+                  <textarea 
+                    value={manualCode} 
+                    onChange={(e) => setManualCode(e.target.value)} 
+                    className="builder-input-field" 
+                    style={{ width: '100%', height: '110px', fontFamily: 'monospace', direction: 'ltr', textAlign: 'left' }}
+                    placeholder={manualLanguage === 'HTML / CSS' ? '<div className="container">...' : 'def main():\n  pass'}
+                  />
+                </div>
+
+                <button onClick={handleManualCreate} className="builder-btn builder-btn-hero">
+                  ➕ צור בלוק חדש
+                </button>
+              </div>
+            </div>
+
+            {/* LIVE REAL SVG PREVIEW PANEL */}
+            <div style={{ flex: 1, minWidth: '340px' }}>
+              {activePreviewBlock && (
+                <LiveBlockPreview blockData={activePreviewBlock} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: MY CUSTOM BLOCK LIBRARY */}
+        {activeTab === 'library' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a' }}>
+                📦 ספריית הבלוקים של {activeProject?.name} ({activeProject?.blocks?.length || 0})
+              </h2>
+              <button onClick={() => setActiveTab('ai')} className="builder-btn builder-btn-hero">
+                ✨ צור בלוק נוסף ב-AI
+              </button>
+            </div>
+
+            {(!activeProject?.blocks || activeProject.blocks.length === 0) ? (
+              <div style={{ padding: '60px 20px', background: '#fff', borderRadius: '20px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <span style={{ fontSize: '3rem', display: 'block', marginBottom: '12px' }}>🧩</span>
+                <h3 style={{ color: '#0f172a', marginBottom: '6px' }}>עדיין אין בלוקים בפרויקט זה</h3>
+                <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '20px' }}>השתמש בסוכן ה-AI כדי ליצור בלוקים מותאמים אישית בקלות ובמהירות!</p>
+                <button onClick={() => setActiveTab('ai')} className="builder-btn builder-btn-hero">
+                  ✨ מעבר למחולל ה-AI
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
+                {activeProject.blocks.map((block) => (
+                  <div key={block.id} className="custom-block-card">
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '6px' }}>
+                        <span style={{ 
+                          fontSize: '0.8rem', 
+                          padding: '4px 10px', 
+                          borderRadius: '8px', 
+                          background: block.color || '#ea580c', 
+                          color: '#ffffff', 
+                          fontWeight: '800' 
+                        }}>
+                          {block.language || 'C++ / Arduino'}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                          {(block.code || '').split('\n').length} שורות קוד
+                        </span>
+                      </div>
+
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>
+                        {block.name}
+                      </h3>
+
+                      <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '12px' }}>
+                        {block.tooltip}
+                      </p>
+
+                      <div style={{ background: '#0f172a', padding: '10px 14px', borderRadius: '10px', direction: 'ltr', textAlign: 'left', marginBottom: '16px', maxHeight: '140px', overflowY: 'auto' }}>
+                        <pre style={{ margin: 0, fontSize: '0.82rem', color: '#38bdf8', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                          {block.code}
+                        </pre>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleDeleteBlock(block.id)} 
+                        className="builder-btn"
+                        style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                      >
+                        🗑️ מחק
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
 }
 
 export default CodeToBlock;

@@ -1,49 +1,82 @@
-const express = require('express');
-const cors = require('cors');
-const { exec } = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
+// ====================================================
+// 🤖 SuperBot & Freenove C++ Library Code Files
+// ====================================================
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+export function mergeBlocksWithBaseTemplate(blockCode, baseTemplate) {
+  if (!blockCode || !blockCode.trim()) {
+    return baseTemplate || '';
+  }
 
-// Determine executable path for arduino-cli
-const primaryCliPath = `"C:\\Users\\shimo\\arduino-cli.exe"`;
-const arduinoCliPath = fs.existsSync("C:\\Users\\shimo\\arduino-cli.exe") ? primaryCliPath : 'arduino-cli';
+  const cleanBlockCode = blockCode.trim();
 
-// Temporary workspace & cache directory
-const tempDir = path.join(__dirname, 'arduino_temp');
-const cacheDir = path.join(__dirname, 'arduino_cache');
-if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+  // If the generated block code is already a complete C++ file with #include, use it directly
+  if (cleanBlockCode.includes('#include')) {
+    return cleanBlockCode;
+  }
 
-// Clean up old UUID scratch folders inside arduino_temp to avoid confusion
-try {
-  const files = fs.readdirSync(tempDir);
-  files.forEach(file => {
-    if (file !== 'current_project' && file !== 'superbot_car') {
-      const p = path.join(tempDir, file);
-      if (fs.statSync(p).isDirectory()) {
-        fs.rmSync(p, { recursive: true, force: true });
+  let finalCode = baseTemplate || SUPERBOT_INO_FULL_CODE;
+
+  // Extract Section Markers
+  const extractSection = (markerName) => {
+    const regex = new RegExp(`// ___BLOCK_${markerName}_START___([\\s\\S]*?)// ___BLOCK_${markerName}_END___`, 'g');
+    let matches = [];
+    let match;
+    while ((match = regex.exec(cleanBlockCode)) !== null) {
+      if (match[1] && match[1].trim()) {
+        matches.push(match[1].trim());
       }
     }
-  });
-} catch (e) {}
+    return matches.length > 0 ? matches.join('\n') : null;
+  };
 
-// Supported Boards FQBN Mapping
-const BOARD_FQBN_MAP = {
-  'esp32': 'esp32:esp32:esp32:FlashMode=dio,FlashFreq=80,UploadSpeed=921600',
-  'esp32s3': 'esp32:esp32:esp32s3:FlashMode=qio,FlashFreq=80',
-  'uno': 'arduino:avr:uno',
-  'nano': 'arduino:avr:nano',
-  'mega': 'arduino:avr:mega'
-};
+  const globalsContent = extractSection('GLOBALS');
+  const setupContent = extractSection('SETUP');
+  const loopContent = extractSection('LOOP');
+  const bottomContent = extractSection('BOTTOM');
 
-// Exact Clean C++ SuperBot.h
-const DEFAULT_SUPERBOT_H = `
-#ifndef SuperBot_h
+  const hasMarkers = globalsContent !== null || setupContent !== null || loopContent !== null || bottomContent !== null;
+
+  if (hasMarkers) {
+    // 1. Inject Globals (Above void setup)
+    if (globalsContent) {
+      finalCode = `// 📌 משתנים והגדרות עליונות מהבלוקים:\n${globalsContent}\n\n${finalCode}`;
+    }
+
+    // 2. Inject Setup (Inside void setup)
+    if (setupContent) {
+      const setupPattern = /void\s+setup\s*\(\s*\)\s*\{([\s\S]*?)\}/;
+      finalCode = finalCode.replace(setupPattern, (match, innerSetup) => {
+        const indentedSetup = setupContent.split('\n').map(l => l.trim() ? `  ${l}` : '').join('\n');
+        return `void setup() {${innerSetup}\n  // ⚡ קוד מבלוק ה-setup:\n${indentedSetup}\n}`;
+      });
+    }
+
+    // 3. Inject Loop (Inside void loop)
+    if (loopContent) {
+      const loopPattern = /void\s+loop\s*\(\s*\)\s*\{([\s\S]*?)\}/;
+      finalCode = finalCode.replace(loopPattern, (match, innerLoop) => {
+        const indentedLoop = loopContent.split('\n').map(l => l.trim() ? `  ${l}` : '').join('\n');
+        return `void loop() {${innerLoop}\n  // 🔁 קוד מבלוק ה-loop:\n${indentedLoop}\n}`;
+      });
+    }
+
+    // 4. Inject Bottom Functions (Below void loop)
+    if (bottomContent) {
+      finalCode = `${finalCode}\n\n// ⚙️ פונקציות וקוד נוסף מבלוקים:\n${bottomContent}\n`;
+    }
+  } else {
+    // Fallback: Loose action statement blocks (e.g. bot.moveForward(200); delay(1000);)
+    const setupEndPattern = /void\s+setup\s*\(\s*\)\s*\{([\s\S]*?)\}/;
+    finalCode = finalCode.replace(setupEndPattern, (match, innerSetup) => {
+      const indentedBlocks = cleanBlockCode.split('\n').map(line => `  ${line}`).join('\n');
+      return `void setup() {${innerSetup}\n  // 🧩 קוד שנבנה מתוך הבלוקים בסביבת העבודה:\n${indentedBlocks}\n}`;
+    });
+  }
+
+  return finalCode;
+}
+
+export const SUPERBOT_H_CODE = `#ifndef SuperBot_h
 #define SuperBot_h
 
 #include "Arduino.h"
@@ -159,8 +192,7 @@ class SuperBot {
 #endif
 `;
 
-const DEFAULT_SUPERBOT_CPP = `
-#include "SuperBot.h"
+export const SUPERBOT_CPP_CODE = `#include "SuperBot.h"
 
 static bool camera_is_active = false;
 
@@ -543,209 +575,224 @@ float SuperBot::getDistance() {
 }
 `;
 
-// Fallback FirebaseESP32 Header for standalone compilation
-const DEFAULT_FIREBASE_H = `
-#ifndef FirebaseESP32_H
-#define FirebaseESP32_H
-#include <Arduino.h>
+export const SUPERBOT_INO_FULL_CODE = `#include "SuperBot.h"
+#include <WiFi.h>
+#include <FirebaseESP32.h>
 
-class FirebaseData {
-public:
-  String stringData() { return ""; }
-  int intData() { return 0; }
-  bool boolData() { return false; }
-  String dataType() { return "string"; }
-  String streamPath() { return ""; }
-  String dataPath() { return ""; }
-};
+SuperBot bot;
+FirebaseData firebaseData;
 
-class FirebaseConfig {
-public:
-  String host;
-  String signer;
-  struct {
-    String url;
-  } database_url;
-};
+// הגדרת אובייקטים הדרושים לגרסה החדשה של Firebase
+FirebaseConfig config;
+FirebaseAuth auth;
 
-class FirebaseAuth {
-public:
-  struct {
-    String legacy_token;
-  } token;
-};
+// ==========================================
+// קודים של שלט רחוק (נשמר כגיבוי)
+// ==========================================
+const String CMD_MODE_MANUAL = "FF30CF"; // 1: נהיגה ידנית
+const String CMD_MODE_LINE   = "FF7A85"; // 3: מעקב קו
+const String CMD_TOGGLE_CAM  = "FFB04F"; // c: כיבוי/הדלקת מצלמה
+const String CMD_TOGGLE_LED  = "FF08F4"; // refresh: החלפת מצבי תאורה
+const String CMD_HORN        = "FF50AE"; // play: צופר (זמזם)
+const String CMD_TAKE_PHOTO  = "FF6897"; // 0: צילום תמונה (אפקט פלאש)
 
-class FirebaseClass {
-public:
-  void begin(FirebaseConfig* config, FirebaseAuth* auth) {}
-  void begin(const String& host, const String& auth) {}
-  void reconnectWiFi(bool b) {}
-  bool getString(FirebaseData& data, const String& path) { return true; }
-  bool setString(FirebaseData& data, const String& path, const String& value) { return true; }
-  bool setInt(FirebaseData& data, const String& path, int value) { return true; }
-  bool getInt(FirebaseData& data, const String& path) { return true; }
-  bool stream(FirebaseData& data, const String& path) { return true; }
-  bool readStream(FirebaseData& data) { return true; }
-  bool streamAvailable(FirebaseData& data) { return false; }
-  bool set(FirebaseData& data, const String& path, const String& value) { return true; }
-};
+const String CMD_FWD     = "FF18E7"; // 2
+const String CMD_BACK    = "FF4AB5"; // 8
+const String CMD_RIGHT   = "FF5AA5"; // 6
+const String CMD_LEFT    = "FF10EF"; // 4
+const String CMD_STOP    = "FF18E7"; // 5
+const String CMD_FASTER  = "FF02FD"; // +
+const String CMD_SLOWER  = "FF30CE"; // -
 
-extern FirebaseClass Firebase;
+// ==========================================
+// משתני מערכת
+// ==========================================
+enum RobotMode { MODE_MANUAL, MODE_LINE_TRACK };
+RobotMode currentMode = MODE_MANUAL;
 
-#endif
-`;
+int currentSpeed = 800;
+bool isCameraOn = false;
+int ledMode = 0; 
+bool isMovingForward = false; 
+const int ROBOT_ROLE = 1;
+const int TURN_90_TIME = 600;
 
-const DEFAULT_FIREBASE_CPP = `
-#include "FirebaseESP32.h"
-FirebaseClass Firebase;
-`;
+// משתנה עזר למניעת הצפת הדפסות ב-Serial
+String lastFirebaseCmd = ""; 
 
-function prepareProjectFiles(projectPath, runId, code, headerCode, cppCode) {
-  const sketchPath = path.join(projectPath, `${runId}.ino`);
-  fs.writeFileSync(sketchPath, code, 'utf8');
-
-  const hContent = headerCode || DEFAULT_SUPERBOT_H;
-  fs.writeFileSync(path.join(projectPath, 'SuperBot.h'), hContent, 'utf8');
-
-  const cppContent = cppCode || DEFAULT_SUPERBOT_CPP;
-  fs.writeFileSync(path.join(projectPath, 'SuperBot.cpp'), cppContent, 'utf8');
-
-  fs.writeFileSync(path.join(projectPath, 'FirebaseESP32.h'), DEFAULT_FIREBASE_H, 'utf8');
-  fs.writeFileSync(path.join(projectPath, 'FirebaseESP32.cpp'), DEFAULT_FIREBASE_CPP, 'utf8');
+void setup() {
+  bot.begin();
 }
 
-// 1. GET Connected COM Ports
-app.get('/ports', (req, res) => {
-  const cmd = `${arduinoCliPath} board list --format json`;
-  exec(cmd, { timeout: 15000 }, (err, stdout) => {
-    let ports = [];
-    if (!err && stdout) {
-      try {
-        const data = JSON.parse(stdout);
-        const detected = data.detected_ports || data.matching_boards || [];
-        ports = detected.map(p => ({
-          port: p.port ? p.port.address : p.address,
-          protocol: p.port ? p.port.protocol : 'serial',
-          board: (p.matching_boards && p.matching_boards[0]) ? p.matching_boards[0].name : 'ESP32 / USB Serial Device'
-        }));
-      } catch (e) {
-        console.error('Error parsing json:', e);
-      }
-    }
-
-    if (ports.length > 0) {
-      return res.json({ ports });
-    }
-
-    if (process.platform === 'win32') {
-      const psCmd = `powershell -Command "[System.IO.Ports.SerialPort]::GetPortNames()"`;
-      exec(psCmd, { timeout: 10000 }, (psErr, psStdout) => {
-        if (!psErr && psStdout) {
-          const rawNames = psStdout.split(/\r?\n/).map(s => s.trim()).filter(s => s.startsWith('COM'));
-          rawNames.forEach(portName => {
-            if (!ports.some(p => p.port === portName)) {
-              ports.push({
-                port: portName,
-                protocol: 'serial',
-                board: 'ESP32 / USB Serial Device'
-              });
-            }
-          });
-        }
-        res.json({ ports });
-      });
-    } else {
-      res.json({ ports: [] });
-    }
-  });
-});
-
-// 2. POST Compile C++ Code
-app.post('/compile', (req, res) => {
-  const { code, board = 'esp32', headerCode, cppCode } = req.body;
-  const fqbn = BOARD_FQBN_MAP[board] || board || 'esp32:esp32:esp32';
-
-  const runId = 'superbot_car';
-  const projectPath = path.join(tempDir, runId);
-  const buildOutDir = path.join(projectPath, 'build');
-  if (!fs.existsSync(projectPath)) fs.mkdirSync(projectPath, { recursive: true });
-  if (!fs.existsSync(buildOutDir)) fs.mkdirSync(buildOutDir, { recursive: true });
-
-  prepareProjectFiles(projectPath, runId, code, headerCode, cppCode);
-
-  console.log(`[Compile] Building FQBN: ${fqbn} at ${projectPath}`);
-
-  const cmd = `${arduinoCliPath} compile --fqbn "${fqbn}" --output-dir "${buildOutDir}" "${projectPath}"`;
-  exec(cmd, { maxBuffer: 1024 * 1024 * 20, timeout: 300000 }, (err, stdout, stderr) => {
-    if (err) {
-      res.json({ success: false, output: stderr || stdout || err.message || 'שגיאת קומפילציה' });
-    } else {
-      let binBase64 = null;
-      try {
-        const binPath = path.join(buildOutDir, `${runId}.ino.bin`);
-        if (fs.existsSync(binPath)) {
-          binBase64 = fs.readFileSync(binPath).toString('base64');
-        }
-      } catch (e) {}
-
-      res.json({ success: true, output: stdout || 'קומפילציה הושלמה בהצלחה!', binBase64 });
-    }
-  });
-});
-
-// 3. POST Upload / Flash Firmware via USB COM Port
-app.post('/upload', (req, res) => {
-  const { code, board = 'esp32', port, headerCode, cppCode } = req.body;
-  const fqbn = BOARD_FQBN_MAP[board] || board || 'esp32:esp32:esp32';
-
-  if (!port) {
-    return res.status(400).json({ success: false, output: 'אנא בחר יציאת USB (COM Port) לצריבה.' });
-  }
-
-  const runId = 'superbot_car';
-  const projectPath = path.join(tempDir, runId);
-  const buildOutDir = path.join(projectPath, 'build');
-  if (!fs.existsSync(projectPath)) fs.mkdirSync(projectPath, { recursive: true });
-  if (!fs.existsSync(buildOutDir)) fs.mkdirSync(buildOutDir, { recursive: true });
-
-  prepareProjectFiles(projectPath, runId, code, headerCode, cppCode);
-
-  console.log(`[Upload] Compiling & Flashing FQBN: ${fqbn} on Port: ${port}`);
-
-  const fullUploadCmd = `${arduinoCliPath} compile --upload -p ${port} --fqbn "${fqbn}" "${projectPath}"`;
-  exec(fullUploadCmd, { maxBuffer: 1024 * 1024 * 20, timeout: 300000 }, (uErr, uStdout, uStderr) => {
-    const codeHeader = `📄 === הקוד המדויק שנצרב ל-ESP32 (superbot_car.ino) ===\n${code}\n=======================================================\n\n`;
-    if (uErr) {
-      res.json({ success: false, output: `${codeHeader}שגיאה בתהליך הקומפילציה/הצריבה (פורט ${port}):\n${uStderr || uStdout || uErr.message}` });
-    } else {
-      res.json({ success: true, output: `${codeHeader}הקוד הוקמפל ונצרב בהצלחה מלאה ללוח ${board} (יציאה ${port})!\n\n${uStdout}` });
-    }
-  });
-});
-
-// Multi-port listening fallback (process.env.PORT -> 3002 -> 3005 -> 3001 -> 5005)
-const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : null;
-const PORTS_TO_TRY = envPort ? [envPort, 3002, 3005, 3001, 5005] : [3002, 3005, 3001, 5005];
-
-function startServer(index = 0) {
-  if (index >= PORTS_TO_TRY.length) {
-    console.error('❌ כל הפורטים תפוסים. לא ניתן להפעיל את השרת.');
-    return;
-  }
-
-  const targetPort = PORTS_TO_TRY[index];
-  const server = app.listen(targetPort, () => {
-    console.log(`⚡ שרת קומפילציה פועל בהצלחה על PORT ${targetPort}`);
-  });
-
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.log(`⚠️ PORT ${targetPort} תפוס במחשב, מנסה באופן אוטומטי את PORT ${PORTS_TO_TRY[index + 1]}...`);
-      startServer(index + 1);
-    } else {
-      console.error('Server launch error:', err);
-    }
-  });
+void loop() {
 }
 
-startServer();
+// ==========================================
+// 🕹️ פונקציית ניהול פקודות מ-Firebase
+// ==========================================
+void handleFirebaseCommand(String cmd) {
+  if (cmd != lastFirebaseCmd) {
+    Serial.println("Firebase Command: " + cmd);
+    lastFirebaseCmd = cmd;
+  }
+
+  if (currentMode == MODE_MANUAL) {
+    if (cmd == "1" || cmd == "FORWARD") {
+      bot.moveForward(currentSpeed);
+      isMovingForward = true;
+      bot.setEyes(EYE_HAPPY);
+    } 
+    else if (cmd == "2" || cmd == "BACK") {
+      bot.moveBackward(currentSpeed);
+      isMovingForward = false;
+      bot.setEyes(EYE_NORMAL);
+    } 
+    else if (cmd == "3" || cmd == "LEFT") {
+      bot.turnLeft(currentSpeed);
+      isMovingForward = false;
+    } 
+    else if (cmd == "4" || cmd == "RIGHT") {
+      bot.turnRight(currentSpeed);
+      isMovingForward = false;
+    } 
+    else if (cmd == "0" || cmd == "STOP") {
+      bot.stop();
+      isMovingForward = false;
+      bot.setEyes(EYE_NORMAL);
+    }
+  }
+}
+
+// ==========================================
+// 📺 ניהול פקודות שלט רחוק (קוד מקורי)
+// ==========================================
+void handleRemoteCommand(String code) {
+  if (currentMode == MODE_MANUAL) {
+    if (code == CMD_FWD) {
+      bot.moveForward(currentSpeed);
+      isMovingForward = true;
+      bot.setEyes(EYE_HAPPY);
+    } 
+    else if (code == CMD_BACK) {
+      bot.moveBackward(currentSpeed);
+      isMovingForward = false;
+    } 
+    else if (code == CMD_LEFT) {
+      bot.turnLeft(currentSpeed);
+      isMovingForward = false;
+    } 
+    else if (code == CMD_RIGHT) {
+      bot.turnRight(currentSpeed);
+      isMovingForward = false;
+    } 
+    else if (code == CMD_STOP) {
+      bot.stop();
+      isMovingForward = false;
+      bot.setEyes(EYE_NORMAL);
+    }
+    else if (code == CMD_FASTER) {
+      currentSpeed += 300;
+      if (currentSpeed > 4000) currentSpeed = 4000;
+    }
+    else if (code == CMD_SLOWER) {
+      currentSpeed -= 300;
+      if (currentSpeed < 1000) currentSpeed = 1000;
+    }
+  }
+}
+
+// ==========================================
+// 🎨 פונקציית ציור הצורות
+// ==========================================
+void performShapeDance() {
+  int driveSpeed = 1500;
+  int turnSpeed = 1500;
+
+  if (ROBOT_ROLE == 1) {
+    bot.setLeds(0, 0, 255);
+    bot.setEyes(EYE_NORMAL);
+    
+    for (int i = 0; i < 4; i++) {
+      bot.moveForward(driveSpeed);
+      delay(1000); 
+      bot.stop();
+      delay(200);
+      bot.turnRight(turnSpeed);
+      delay(TURN_90_TIME);
+      bot.stop();
+      delay(200);
+    }
+  } 
+  else if (ROBOT_ROLE == 2) {
+    bot.setLeds(255, 0, 0);
+    bot.setEyes(EYE_ANGRY); 
+    
+    for (int i = 0; i < 3; i++) {
+      bot.moveForward(driveSpeed);
+      delay(1300); 
+      bot.stop();
+      delay(200);
+      bot.turnRight(turnSpeed);
+      delay(TURN_90_TIME * 1.33);
+      bot.stop();
+      delay(200);
+    }
+  } 
+  else if (ROBOT_ROLE == 3) {
+    bot.setLeds(0, 255, 0);
+    bot.setEyes(EYE_HAPPY); 
+    
+    for (int i = 0; i < 8; i++) {
+      bot.moveForward(driveSpeed);
+      delay(500); 
+      bot.stop();
+      delay(200);
+      bot.turnRight(turnSpeed);
+      delay(TURN_90_TIME / 2);
+      bot.stop();
+      delay(200);
+    }
+  }
+}
+
+void performGrandFinale() {
+  delay(500);
+  bot.moveHead(90, 135);
+  bot.setEyes(EYE_HAPPY);
+
+  for (int i = 0; i < 3; i++) {
+    bot.setLeds(255, 255, 255); delay(150);
+    bot.setLeds(255, 0, 255);   delay(150); 
+    bot.setLeds(0, 255, 255);   delay(150);
+  }
+
+  bot.setLeds(255, 255, 0); 
+  bot.turnLeft(2000);
+  delay(1000);
+  bot.stop();
+
+  bot.setLeds(255, 255, 255);
+  bot.beep(800);
+  bot.centerHead();
+}
+
+void runLineTracking() {
+  if (bot.getDistance() < 10.0) {
+     bot.stop();
+     return;
+  }
+
+  if (bot.checkLine(0, 1, 0)) {          
+    bot.moveForward(1200);
+  } 
+  else if (bot.checkLine(1, 0, 0) || bot.checkLine(1, 1, 0)) { 
+    bot.turnLeft(1500);
+  } 
+  else if (bot.checkLine(0, 0, 1) || bot.checkLine(0, 1, 1)) { 
+    bot.turnRight(1500);
+  } 
+  else if (bot.checkLine(0, 0, 0)) {     
+    bot.stop();
+  }
+}
+`;

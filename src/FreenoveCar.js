@@ -9,16 +9,169 @@ import AIBlockGeneratorModal from './AIBlockGeneratorModal';
 import FlashingModal from './FlashingModal';
 import ComPortStatusBadge from './ComPortStatusBadge';
 import { SUPERBOT_H_CODE, SUPERBOT_CPP_CODE, SUPERBOT_INO_FULL_CODE, mergeBlocksWithBaseTemplate } from './superbotCode';
-import { TURTLE_HERO } from './projectImages';
+import { CAR_4WD_HERO } from './projectImages';
 
-// Base CDN Image URL for SuperBot Smart Robot
-const SUPERBOT_IMG_BASE = 'https://docs.freenove.com/projects/fnk0053/en/latest/_images/';
+// Base Freenove Docs CDN Image URL
+const FREENOVE_IMG_BASE = 'https://docs.freenove.com/projects/fnk0053/en/latest/_images/';
 
 // Pre-register all system blocks at top-level module evaluation
 registerAllBlocks();
 
-// COMPLETE 10 CODING LESSONS FOR CHAPTER 2 WITH SHORT BLOCK NAMES & NEEDED BLOCKS LIST
-const SUPERBOT_CHAPTER_2_LESSONS = [
+// Register Freenove Car Specific Basic Arduino Blocks
+function registerFreenoveCarBasicBlocks() {
+  Blockly.Blocks['freenove_motor_drive'] = {
+    init: function() {
+      this.appendDummyInput()
+          .appendField("🏎️ נהיגה 4WD")
+          .appendField(new Blockly.FieldDropdown([
+            ["קדימה", "FORWARD"],
+            ["אחורה", "BACKWARD"],
+            ["שמאלה", "LEFT"],
+            ["ימינה", "RIGHT"],
+            ["עצור", "STOP"]
+          ]), "DIR")
+          .appendField("מהירות:")
+          .appendField(new Blockly.FieldTextInput("200"), "SPEED");
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour('#4f46e5');
+      this.setTooltip("מניע את 4 מנועי המכונית");
+    }
+  };
+  const motorGen = function(block) {
+    const dir = block.getFieldValue('DIR');
+    const speed = block.getFieldValue('SPEED') || '200';
+    return `bot.moveForward(${speed}); // ${dir}\n`;
+  };
+  javascriptGenerator.forBlock['freenove_motor_drive'] = motorGen;
+  javascriptGenerator['freenove_motor_drive'] = motorGen;
+
+  Blockly.Blocks['freenove_servo_angle'] = {
+    init: function() {
+      this.appendDummyInput()
+          .appendField("📐 זווית סרוו:")
+          .appendField(new Blockly.FieldTextInput("90"), "ANGLE");
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour('#7e22ce');
+      this.setTooltip("מכוון את מנוע הסרוו לזווית הנבחרת");
+    }
+  };
+  const servoGen = function(block) {
+    const angle = block.getFieldValue('ANGLE') || '90';
+    return `bot.moveHead(${angle}, 90);\n`;
+  };
+  javascriptGenerator.forBlock['freenove_servo_angle'] = servoGen;
+  javascriptGenerator['freenove_servo_angle'] = servoGen;
+
+  Blockly.Blocks['freenove_ultrasonic_distance'] = {
+    init: function() {
+      this.appendDummyInput()
+          .appendField("📏 מרחק (ס\"מ)");
+      this.setOutput(true, null);
+      this.setColour('#059669');
+      this.setTooltip("מחזיר מרחק בס\"מ ממכשול מול המכונית");
+    }
+  };
+  const ultrasonicGen = function(block) {
+    return [`bot.getDistance()`, javascriptGenerator.ORDER_ATOMIC];
+  };
+  javascriptGenerator.forBlock['freenove_ultrasonic_distance'] = ultrasonicGen;
+  javascriptGenerator['freenove_ultrasonic_distance'] = ultrasonicGen;
+
+  Blockly.Blocks['freenove_line_sensor'] = {
+    init: function() {
+      this.appendDummyInput()
+          .appendField("🛤️ חיישן קו:")
+          .appendField(new Blockly.FieldDropdown([
+            ["שמאל", "LEFT"],
+            ["מרכז", "CENTER"],
+            ["ימין", "RIGHT"]
+          ]), "SENSOR");
+      this.setOutput(true, null);
+      this.setColour('#ea580c');
+      this.setTooltip("מחזיר אמת אם החיישן מזהה קו שחור");
+    }
+  };
+  const lineGen = function(block) {
+    const sensor = block.getFieldValue('SENSOR');
+    return [`bot.checkLine(0, 1, 0)`, javascriptGenerator.ORDER_ATOMIC];
+  };
+  javascriptGenerator.forBlock['freenove_line_sensor'] = lineGen;
+  javascriptGenerator['freenove_line_sensor'] = lineGen;
+
+  Blockly.Blocks['freenove_delay'] = {
+    init: function() {
+      this.appendDummyInput()
+          .appendField("⏱️ המתן (מילי-שניות):")
+          .appendField(new Blockly.FieldTextInput("1000"), "MS");
+      this.setPreviousStatement(true, null);
+      this.setNextStatement(true, null);
+      this.setColour('#d97706');
+      this.setTooltip("ממתין מספר מילי-שניות לפני המעבר לפקודה הבאה");
+    }
+  };
+  const delayGen = function(block) {
+    const ms = block.getFieldValue('MS') || '1000';
+    return `delay(${ms});\n`;
+  };
+  javascriptGenerator.forBlock['freenove_delay'] = delayGen;
+  javascriptGenerator['freenove_delay'] = delayGen;
+}
+
+// COMPLETE ALL 32 ASSEMBLY STEPS FROM FREENOVE OFFICIAL DOCS
+const ASSEMBLY_STEPS_ALL = [
+  // --- WELCOME PAGE ---
+  {
+    id: 'step_0.0',
+    title: '✨ ברוכים הבאים לפרויקט רובוט מכונית 4WD Pro (Freenove ESP32)!',
+    isWelcomePage: true,
+    videoUrl: 'https://video.aliexpress-media.com/play/u/ae_sg_item/2213001014720/p/1/e/6/t/10301/1100063412438.mp4?from=chrome&definition=h265',
+    videoLink: 'https://video.aliexpress-media.com/play/u/ae_sg_item/2213001014720/p/1/e/6/t/10301/1100063412438.mp4?from=chrome&definition=h265',
+    welcomeText: 'ברוכים הבאים למסלול הרובוטיקה המתקדם! בפרויקט זה תבנו בעצמכם מכונית רובוטית 4WD Pro עוצמתית המבוססת על בקר ESP32-Wrover-Dev, עם ראש Pan-Tilt דו-צדדי, מצלמה בזמן אמת, מטריצת לדים, חיישן אולטרסוני, חיישן מעקב קו ושליטה מלאה באפליקציית Wi-Fi.',
+    features: [
+      { icon: '🏎️', title: '32 שלבי הרכבה מפורטים', desc: 'הרכבה מכאנית מלאה של ה-4WD, מנועי ה-DC, הגלגלים ושלדת האלומיניום.' },
+      { icon: '📷', title: 'ראש Pan-Tilt ומצלמת ESP32', desc: 'תנועה דו-צירית למצלמת ה-Wi-Fi למעקב חזותי וצפייה בלייב.' },
+      { icon: '🧩', title: 'תכנות בבלוקים ובקוד C++', desc: 'עריכת קוד C++ מלאה, סביבת Blockly ומחולל AI אוטומטי.' },
+      { icon: '📱', title: 'שליטה באפליקציה ו-Wi-Fi', desc: 'נהיגה מרחוק באפליקציה, עקיפת מכשולים אוטונומית ומעקב קו.' }
+    ]
+  },
+  { id: '1.0', title: 'ערכת חלקי תושבות המנוע (Motor Fixed Bracket Package)', partsNeeded: ['תושבת אלומיניום', '2x ברגי M3*30', '2x ברגי M3*8', '2x אומי M3'], instructions: ['זהה את חלקי תושבת המנוע בערכה: תושבות אלומיניום, ברגי M3*30, ברגי M3*8 ואומי M3.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_00.png` },
+  { id: '1.1', title: 'שלב 1: חיבור תושבת המנוע ל-Car Shield', partsNeeded: ['2x ברגי M3*8', 'תושבת אלומיניום', 'לוח Car Shield תחתון'], instructions: ['הפוך את לוח השלדה כשהחלק התחתון מופנה כלפי מעלה.', 'חזק את תושבת המתכת לשלדה בעזרת שני ברגי M3*8.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_01.png` },
+  { id: '1.2', title: 'שלב 2: הרכבת מנוע ה-DC לתושבת', partsNeeded: ['מנוע DC צהוב', '2x ברגי M3*30', '2x אומי M3'], instructions: ['הנח את מנוע ה-DC הצהוב בצמוד לתושבת המתכת.', 'הכנס שני ברגי M3*30 והדק בעזרת אומי M3 בצד השני.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_02.png` },
+  { id: '1.3', title: 'שלב 3: חיווט כבלי המנוע לטרמינלים', partsNeeded: ['כבלי הזנת מנוע (אדום/שחור)'], instructions: ['העבר את כבלי המנוע דרך חור הכבלים במרכז הלוח.', 'חבר את הכבלים לטרמינלי המנוע העליונים ב-Car Shield.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_03.png` },
+  { id: '1.4', title: 'שלב 4: הרכבת הגלגל לציר מנוע ה-DC', partsNeeded: ['גלגל גומי 65 מ"מ'], instructions: ['יישר את חור ציר ה-D בגלגל עם ציר מנוע ה-DC והחלק בלחץ עדין.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_04.png` },
+  { id: '1.5', title: 'שלב 5: הרכבת 4 הגלגלים המלאה', partsNeeded: ['4x גלגלים', '4x מנועי DC'], instructions: ['חזור על הפעולה עבור כל 4 הגלגלים עד להשלמת כל גלגלי ה-4WD.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_05.png` },
+  { id: '1.6', title: 'שלב 6: התקנת לוח בקר ה-ESP32-Wrover-Dev', partsNeeded: ['לוח ESP32-Wrover-Dev'], instructions: ['הכנס בזהירות את לוח ה-ESP32 לתושבת ה-Shield. אזהרה: אל תהפוך את כיוון הלוח כדי למנוע שריפת הרכיב.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_06.png` },
+  { id: '1.7', title: 'שלב 7: ערכת חלקי מנוע הסרוו (Servo Package)', partsNeeded: ['מנוע סרוו SG90', '3x זרועות רוקר', '2x ברגי M2*8', 'בורג M2*4'], instructions: ['זהה את חלקי מנוע הסרוו בערכה: מנוע סרוו, 3 זרועות רוקר, ברגי M2*8 ובורג M2*4.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_07.png` },
+  { id: '1.8', title: 'שלב 8: חיבור Servo1 ל-Car Shield', partsNeeded: ['2x ברגי M2*16', '2x אומי M2'], instructions: ['חזק את מנוע סרוו 1 ללוח ה-Car Shield בעזרת שני ברגי M2*16 ואומי M2.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_08.png` },
+  { id: '1.9', title: 'שלב 9: חיבור שני לוחות ה-Pan-Tilt האקריליים', partsNeeded: ['בורג M2*16', 'אום M2'], instructions: ['חזק את שני חלקי ה-Pan-Tilt האקריליים יחד בעזרת בורג M2*16 ואום M2.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_09.png` },
+  { id: '1.10', title: 'שלב 10: חיבור תושבת ה-Pan-Tilt ל-Servo1 (איפוס 90°)', partsNeeded: ['2x ברגי M2.5*8', 'בורג M2*4'], instructions: ['כוון את הסרוו ל-90 מעלות, חזק את התושבת לזרוע הרוקר בברגי M2.5*8 והדק לציר בבורג M2*4.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_10.png` },
+  { id: '1.11', title: 'שלב 11: חיבור Servo2 לתושבת Pan-Tilt', partsNeeded: ['2x ברגי M2*16', '2x אומי M2'], instructions: ['חזק את מנוע סרוו 2 לתושבת ה-Pan-Tilt בעזרת שני ברגי M2*16 ואומי M2.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_11.png` },
+  { id: '1.12', title: 'שלב 12: חיווט כבלי מנועי הסרוו ללוח', partsNeeded: ['כבלי Servo1 ו-Servo2'], instructions: ['חבר את כבלי Servo1 ו-Servo2 לפורטים המיועדים ב-Shield.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_12.png` },
+  { id: '1.13', title: 'שלב 13: חלקי האקריליק של תושבת מטריצת ה-LED', partsNeeded: ['לוחות אקריליק לראש הרובוט'], instructions: ['זהה את לוחות האקריליק עבור הרכבת ראש הרובוט ומטריצת ה-LED.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_13.png` },
+  { id: '1.14', title: 'שלב 14: פירוק רכיב המצלמה מ-ESP32', partsNeeded: ['בקר ESP32 CAM'], instructions: ['שחרר בעדינות את מנעול ה-FPC Connector והסר את המצלמה בזהירות.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_14.png` },
+  { id: '1.15', title: 'שלב 15: חיבור תושבת המצלמה ל-Pan-Tilt', partsNeeded: ['4x ברגי M1.4*6'], instructions: ['חבר את תושבת המצלמה לתושבת ה-Pan-Tilt בעזרת ארבעה ברגי M1.4*6.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_15.png` },
+  { id: '1.16', title: 'שלב 16: חיבור מטריצת ה-LED ל-Pan-Tilt', partsNeeded: ['4x ברגי M1.4*6', 'מטריצת LED'], instructions: ['חזק את מטריצת ה-LED לתושבת בעזרת ארבעה ברגי M1.4*6.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_16.png` },
+  { id: '1.17', title: 'שלב 17: הוספת אומי M3 כספייסרים בין הלוחות', partsNeeded: ['2x אומי M3'], instructions: ['הנח שני אומי M3 כספייסרים בין שני לוחות האקריליק.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_17.png` },
+  { id: '1.18', title: 'שלב 18: חיזוק הלוחות האקריליים (חלק 1)', partsNeeded: ['בורג M2*16', 'אום M2'], instructions: ['חזק את שני לוחות האקריליק בעזרת בורג M2*16 ואום M2.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_18.png` },
+  { id: '1.19', title: 'שלב 19: חיזוק הלוחות האקריליים (חלק 2)', partsNeeded: ['בורג M2*16', 'אום M2'], instructions: ['חזק את החלק האקרילי השני בעזרת בורג M2*16 ואום M2.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_19.png` },
+  { id: '1.20', title: 'שלב 20: חיבור זרוע הרוקר ללוח האקרילי', partsNeeded: ['2x ברגי M2.5*8'], instructions: ['חבר את זרוע הרוקר ללוח האקרילי בעזרת שני ברגי M2.5*8.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_20.png` },
+  { id: '1.21', title: 'שלב 21: חיבור תושבת האולטרסוני ל-Servo2 (איפוס 90°)', partsNeeded: ['בורג M2*4'], instructions: ['כוון את סרוו 2 ל-90 מעלות והדק את התושבת לציר בבורג M2*4.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_21.png` },
+  { id: '1.22', title: 'שלב 22: סיום הרכבת מכלול ה-Pan-Tilt והמטריצה', partsNeeded: ['מכלול מורכב ראש הרובוט'], instructions: ['בצע בדיקה ויזואלית מלאה של מכלול ה-Pan-Tilt המורכב.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_22.png` },
+  { id: '1.23', title: 'שלב 23: התקנת מודול חיישני מעקב הקו בתחתית השלדה', partsNeeded: ['2x עמודי ספייסר M3*28', '4x ברגי M3*6'], instructions: ['חזק 2 עמודי ספייסר M3*28 לתחתית השלדה בברגי M3*6, וחבר אליהם את מודול מעקב הקו.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_23.png` },
+  { id: '1.24', title: 'שלב 24: חיווט כבל מודול מעקב הקו', partsNeeded: ['כבל שטוח 5-Pin'], instructions: ['חבר את הכבל השטוח בין מודול מעקב הקו לפורט ה-TRACKING בלוח.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_24.png` },
+  { id: '1.25', title: 'שלב 25: הרמת נעילת תופסן כבל ה-FPC', partsNeeded: ['מחבר FPC Connector ב-ESP32'], instructions: ['הרם בזהירות את נעילת התופסן במחבר ה-FPC.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_25.png` },
+  { id: '1.26', title: 'שלב 26: הכנסת כבל ה-FPC (הצד הכחול כלפי מעלה)', partsNeeded: ['כבל FPC של המצלמה'], instructions: ['ודא שהצד הכחול פונה כלפי מעלה וצד המגעים המוזהבים כלפי מטה.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_26.png` },
+  { id: '1.27', title: 'שלב 27: העברת כבל ה-FPC דרך החריץ האקרילי', partsNeeded: ['לוח אקרילי עליון'], instructions: ['ודא כבל ה-FPC עובר בצורה חלקה דרך החריץ בלוח האקרילי.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_27.png` },
+  { id: '1.28', title: 'שלב 28: חיווט כבל ה-4P של מטריצת ה-LED', partsNeeded: ['כבל 4P Jumper'], instructions: ['חבר את כבל ה-4P בין מטריצת ה-LED ללוח בהתאם לסימונים.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_28.png` },
+  { id: '1.29', title: 'שלב 29: הכנסת ברגי M3*6 מתחתית ה-Shield', partsNeeded: ['4x ברגי M3*6'], instructions: ['הכנס ארבעה ברגי M3*6 כלפי מעלה מתחתית ה-Car Shield.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_29.png` },
+  { id: '1.30', title: 'שלב 30: חיזוק 4 עמודי ספייסר M3*28 עליונים', partsNeeded: ['4x עמודי ספייסר M3*28'], instructions: ['הברג ארבעה עמודי ספייסר M3*28 על גבי ברגי ה-M3*6.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_30.png` },
+  { id: '1.31', title: 'שלב 31: חיזוק הלוח האקרילי העליון לרובוט', partsNeeded: ['לוח אקרילי עליון', '4x ברגי M3*6'], instructions: ['יישר את הלוח האקרילי העליון מעל עמודי הספייסר והדק בעזרת ארבעה ברגי M3*6.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_31.png` },
+  { id: '1.32', title: 'שלב 32: בדיקת איכות סופית והדלקת המפסק הראשי', partsNeeded: ['2x סוללות 18650'], instructions: ['הכנס 2 סוללות 18650 טעונות, הדלק את מפסק ה-Power ובדוק שנורת ה-LED הירוקה דולקת.'], imgUrl: `${FREENOVE_IMG_BASE}Chapter01_37.png` }
+];
+
+const OOP_CHAPTER_2_LESSONS = [
   {
     id: '2.1',
     title: 'שיעור 2.1: תכנון תנועה בעזרת 🤖 תוכנית רובוט ו-🏎️ סע',
@@ -31,7 +184,7 @@ const SUPERBOT_CHAPTER_2_LESSONS = [
     title: 'שיעור 2.2: כוונון וסריקת ראש בעזרת 📐 סובב ראש',
     goal: 'תכנת סריקה חלקה של ראש הרובוט ואיפוס מרכז הראש בעזרת הבלוק "📐 סובב ראש".',
     neededBlocks: ['🤖 תוכנית רובוט', '📐 סובב ראש (Pan: 45, Tilt: 90)', '⏱️ המתן', '📐 סובב ראש (Pan: 135, Tilt: 90)', '📐 סובב ראש (Pan: 90, Tilt: 90)'],
-    codeTemplate: `// 🎯 קוד C++ המיועד להיווצר:\nvoid setup() {\n  bot.begin();\n  bot.moveHead(45, 90);\n  delay(500);\n  bot.moveHead(135, 90);\n  delay(500);\n  bot.moveHead(90, 90);\n}\n\nvoid loop() {}`
+    codeTemplate: `// 🎯 קוד C++ המיועד להיווצר:\nvoid setup() {\n  bot.begin();\n  bot.moveHead(45, 90);  // צידוד 45°\n  delay(500);\n  bot.moveHead(135, 90); // צידוד 135°\n  delay(500);\n  bot.moveHead(90, 90);  // מרכוז\n}\n\nvoid loop() {}`
   },
   {
     id: '2.3',
@@ -91,359 +244,6 @@ const SUPERBOT_CHAPTER_2_LESSONS = [
   }
 ];
 
-const KS0558_IMG_BASE = 'https://docs.keyestudio.com/projects/KS0558/en/latest/_images/';
-
-const SUPERBOT_ASSEMBLY_STEPS = [
-  // --- WELCOME PAGE ---
-  {
-    id: 'step_0.0',
-    title: '✨ ברוכים הבאים לפרויקט רובוט צב חכם Keyestudio (KS0558 V3.0)!',
-    isWelcomePage: true,
-    videoUrl: 'https://video.aliexpress-media.com/play/u/ae_sg_item/17380998799/p/1/e/6/t/10301/1100092417021.mp4?from=chrome&definition=h265',
-    videoLink: 'https://video.aliexpress-media.com/play/u/ae_sg_item/17380998799/p/1/e/6/t/10301/1100092417021.mp4?from=chrome&definition=h265',
-    welcomeText: 'ברוכים הבאים לעולם הרובוטיקה הניידת! בפרויקט זה תבנו צעד-אחר-צעד את רובוט הצב החכם Keyestudio KS0558 V3.0. תלמדו להרכיב את השלדה, המנועים, גלגלי הניווט, חיישני עקיפת מכשולים אולטרסוניים, חיישני מעקב קו, ומטריצת הלדים 8x8!',
-    features: [
-      { icon: '🐢', title: 'בנייה מכאנית צעד-אחר-צעד', desc: 'כל שלבי הרכבת המנועים, התושבות והגלגלים עם תמונות CAD מפורטות.' },
-      { icon: '📡', title: 'חיישנים וניווט אוטונומי', desc: 'תכנות עקיפת מכשולים בעזרת חיישן אולטרסוני ומעקב אחר קו שחור.' },
-      { icon: '💡', title: 'תצוגת מטריצת לדים 8x8', desc: 'תכנות פרצופים חמודים, אייקונים והתרעות קוליות בזמן אמת.' },
-      { icon: '🕹️', title: 'שלט רחוק ו-Bluetooth', desc: 'בקרת ניווט מלאה דרך שלט IR או אפליקציה סלולרית ב-Bluetooth.' }
-    ]
-  },
-  // --- STEP 1 ---
-  { 
-    id: 'step_1.1', 
-    title: 'שלב 1.1: רשימת רכיבים להרכבת השלדה התחתית (Bottom Motor Wheel - Parts)', 
-    partsNeeded: ['ברגי M3*6mm עגולים x2', 'אומים M3 x2', 'שלדת PCB תחתית x1', 'חיישן עוקב קו Tracking Sensor x1', 'גלגלי ניווט כדוריים Universal Casters x2'], 
-    instructions: [
-      'המציאו ורכזו את כל הרכיבים הנדרשים לשלב 1: לוח PCB תחתון, חיישן מעקב קו ושני גלגלי ניווט כדוריים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_01.png` 
-  },
-  { 
-    id: 'step_1.2', 
-    title: 'שלב 1.2: חיבור חיישן מעקב הקו וגלגלי הניווט (Bottom Motor Wheel - Assembly)', 
-    partsNeeded: ['שלדת PCB תחתית', 'חיישן עוקב קו', 'גלגלי ניווט כדוריים x2'], 
-    instructions: [
-      '1. התקן את שני גלגלי הניווט הכדוריים בחלק האחורי של הלוח התחתון.',
-      '2. חבר את מודול חיישן עוקב הקו (Tracking Sensor) בחזית הלוח התחתון בעזרת 2 ברגי M3*6mm ואומים M3.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_01.png` 
-  },
-
-  // --- STEP 2 ---
-  { 
-    id: 'step_2.1', 
-    title: 'שלב 2.1: רשימת רכיבים להרכבת המנועים ובית הסוללות (Assemble Parts - Required)', 
-    partsNeeded: ['אומים M2 x4', 'מנועי גיר 12FN20 N20 x2', 'תושבות מתכת U-type x2', 'גלגלי גומי N20 x2', 'כבלי 2P מנועים x2', 'כבל 5P x1', 'ברגי M2*12mm עגולים x4', 'בית סוללות 18650 x1', 'ברגי M3*10mm שטוחים x2', 'אומים M3 x2'], 
-    instructions: [
-      'רכזו את מנועי ה-N20, תושבות המתכת U-type, הגלגלים, בית הסוללות 18650 והברגים המתאימים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_07.png` 
-  },
-  { 
-    id: 'step_2.2', 
-    title: 'שלב 2.2: חיזוק תושבות המתכת U-type למנועי ה-N20 (Motors & Bracket Mount)', 
-    partsNeeded: ['מנועי N20 x2', 'תושבות U-type x2'], 
-    instructions: [
-      'הלבישו את תושבות המתכת U-type על שני מנועי ה-12FN20 N20 והדקו בעזרת ברגי M2*12mm ואומים M2.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_07.png` 
-  },
-  { 
-    id: 'step_2.3', 
-    title: 'שלב 2.3: הידוק המנועים לשלדת ה-PCB התחתית (Securing Motors to Chassis)', 
-    partsNeeded: ['שלדת PCB תחתית', 'מנועי N20 מורכבים', 'ברגי M2*12mm x4'], 
-    instructions: [
-      'מקמו את שני המנועים בחורים המיועדים בצידי הלוח התחתון והדקו היטב בברגים ואומים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_08.png` 
-  },
-  { 
-    id: 'step_2.4', 
-    title: 'שלב 2.4: חיבור כבלי ה-2P למנועי ה-DC (Motor Wiring)', 
-    partsNeeded: ['כבלי 2P מנועים x2'], 
-    instructions: [
-      'חברו את שני כבלי ה-2P לחיבורי החשמל של מנועי ה-N20 מימין ומשמאל.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_09.png` 
-  },
-  { 
-    id: 'step_2.5', 
-    title: 'שלב 2.5: הרכבת 2 גלגלי הגומי N20 לצירי המנועים (Mounting Rubber Wheels)', 
-    partsNeeded: ['גלגלי גומי N20 x2'], 
-    instructions: [
-      'דחפו והרכיבו את גלגלי הגומי לצירי מנועי ה-N20 עד להתאמה מלאה.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_10.png` 
-  },
-  { 
-    id: 'step_2.6', 
-    title: 'שלב 2.6: התקנת בית הסוללות 18650 במרכז הלוח (Mounting Battery Holder)', 
-    partsNeeded: ['בית סוללות 18650 x1', 'ברגי M3*10mm שטוחים x2', 'אומים M3 x2'], 
-    instructions: [
-      'מקמו את בית הסוללות במרכז השלדה והדקו בעזרת ברגי M3*10mm שטוחים מלמעלה ואומים מלמטה.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_11.png` 
-  },
-  { 
-    id: 'step_2.7', 
-    title: 'שלב 2.7: ניתוח והעברת הכבלים דרך חריצי השלדה (Cable Routing)', 
-    partsNeeded: ['כבלי 2P מנועים', 'כבל סוללה'], 
-    instructions: [
-      'העבירו את כבלי המנועים וכבל הסוללה דרך חריצי הלוח למעלה לקראת החיבור ללוח הבקר.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_12.png` 
-  },
-
-  // --- STEP 3 ---
-  { 
-    id: 'step_3.1', 
-    title: 'שלב 3.1: רשימת רכיבים ללוח העליון (Install Top PCB - Required)', 
-    partsNeeded: ['לוח PCB עליון Top PCB x1', 'ברגי M3*6mm עגולים x8', 'עמודי נחושת M3*10mm Dual-pass x8'], 
-    instructions: [
-      'רכזו את לוח ה-PCB העליון, 8 עמודי הנחושת 10 מ"מ ו-8 ברגי M3*6mm.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_15.png` 
-  },
-  { 
-    id: 'step_3.2', 
-    title: 'שלב 3.2: חיזוק עמודי הנחושת והרכבת הלוח העליון (Fastening Top PCB)', 
-    partsNeeded: ['עמודי נחושת M3*10mm x8', 'לוח PCB עליון', 'ברגי M3*6mm x8'], 
-    instructions: [
-      '1. הברגו 8 עמודי נחושת M3*10mm בחורים ההיקפיים של הלוח התחתון.',
-      '2. הציבו את לוח ה-PCB העליון מעל עמודי הנחושת והדקו בברגי M3*6mm עגולים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_15.png` 
-  },
-
-  // --- STEP 4 ---
-  { 
-    id: 'step_4.1', 
-    title: 'שלב 4.1: רשימת רכיבים ללוח הבקר וכרטיס ההרחבה (Mount Control Board - Required)', 
-    partsNeeded: ['לוח בקר ראשי V4.0 Board (תואם UNO) x1', 'לוח הרחבת מנועים 8833 Motor Drive Shield x1', 'ברגי M3*6mm עגולים x4'], 
-    instructions: [
-      'רכזו את לוח הבקר V4.0, כרטיס הרחבת המנועים 8833 וברגי M3*6mm.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_27.png` 
-  },
-  { 
-    id: 'step_4.2', 
-    title: 'שלב 4.2: חיבור לוח הבקר הראשי V4.0 ללוח העליון (Securing Control Board)', 
-    partsNeeded: ['לוח V4.0 Board', 'ברגי M3*6mm x4'], 
-    instructions: [
-      'התקינו את לוח הבקר V4.0 על גבי הלוח העליון והדקו בעזרת 4 ברגי M3*6mm.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_27.png` 
-  },
-  { 
-    id: 'step_4.3', 
-    title: 'שלב 4.3: חיבור כרטיס הרחבת המנועים 8833 Shield (Plugging Motor Shield)', 
-    partsNeeded: ['8833 Motor Drive Shield'], 
-    instructions: [
-      'חברו בזהירות את כרטיס ההרחבה 8833 Shield ישירות מעל פיני התקשורת של לוח ה-V4.0.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_28.png` 
-  },
-
-  // --- STEP 5 ---
-  { 
-    id: 'step_5.1', 
-    title: 'שלב 5.1: רשימת רכיבים לתושבת הסרוו והחיישן האולטרסוני (Servo Plastic Platform - Required)', 
-    partsNeeded: ['מנוע סרוו Servo SG90 x1', 'בורג M2*4 (מארז סרוו) x1', 'אזיקונים שחורים x2', 'חיישן אולטרסוני Ultrasonic x1', 'תושבת פלסטיק שחורה לראש x1', 'ברגי הברזה M1.2*4 x4', 'ברגי הברזה M2*8 x2'], 
-    instructions: [
-      'רכזו את מנוע הסרוו, חיישן האולטרסוניק, תושבת הפלסטיק השחורה והברגים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_30.png` 
-  },
-  { 
-    id: 'step_5.2', 
-    title: 'שלב 5.2: הרכבת מנוע הסרוו לתושבת הפלסטיק השחורה (Mounting Servo to Platform)', 
-    partsNeeded: ['תושבת פלסטיק שחורה', 'מנוע סרוו SG90', 'ברגי M1.2*4 x4'], 
-    instructions: [
-      'הכניסו את מנוע הסרוו לתושבת הפלסטיק והדקו היטב בעזרת 4 ברגי M1.2*4.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_30.png` 
-  },
-  { 
-    id: 'step_5.3', 
-    title: 'שלב 5.3: חיזוק חיישן האולטרסוניק לתושבת בעזרת אזיקונים (Ultrasonic Sensor Attachment)', 
-    partsNeeded: ['חיישן אולטרסוניק', 'אזיקונים שחורים x2'], 
-    instructions: [
-      'הציבו את חיישן האולטרסוניק בחזית התושבת וחזקו אותו בעזרת 2 אזיקונים שחורים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_30-1.png` 
-  },
-  { 
-    id: 'step_5.4', 
-    title: 'שלב 5.4: הרכבת זרוע הסרוו עם בורג M2*4 (Mounting Servo Horn)', 
-    partsNeeded: ['זרוע סרוו', 'בורג M2*4'], 
-    instructions: [
-      'חברו את זרוע הסרוו לציר מנוע הסרוו והדקו במרכז בעזרת בורג M2*4.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_31.png` 
-  },
-  { 
-    id: 'step_5.5', 
-    title: 'שלב 5.5: יישור מנוע הסרוו לזווית 90° מרכזית (Servo 90° Alignment)', 
-    partsNeeded: ['מנוע סרוו SG90', 'תושבת ראש פלסטיק'], 
-    instructions: [
-      '1. סובבו בעדינות את ציר מנוע הסרוו עד למרכז הטווח שלו.',
-      '2. וודאו שזרוע מנוע הסרוו מיושרת ישר קדימה בזווית של 90° בדיוק לקראת הרכבת הראש.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_32.png` 
-  },
-  { 
-    id: 'step_5.6', 
-    title: 'שלב 5.6: ניתוק כבל הסרוו לאחר איפוס (Disconnect Servo Wire)', 
-    partsNeeded: ['כבל סרוו'], 
-    instructions: [
-      'לאחר שזרוע הסרוו הסתובבה והתיישרה ל-90°, נתקו זמנית את כבל הסרוו לצורך ההרכבה המכאנית.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_33.png` 
-  },
-  { 
-    id: 'step_5.7', 
-    title: 'שלב 5.7: חיבור תושבת הראש המורכבת לשלדת הרובוט (Attaching Head Assembly)', 
-    partsNeeded: ['תושבת ראש מורכבת', 'ברגי M2*8 x2'], 
-    instructions: [
-      'חברו את תושבת הראש המורכבת לחלק הקדמי של הלוח העליון והדקו בברגי M2*8.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_34.png` 
-  },
-
-  // --- STEP 6 ---
-  { 
-    id: 'step_6.1', 
-    title: 'שלב 6.1: רשימת רכיבים להרכבה סופית (Final Assembly - Required)', 
-    partsNeeded: ['כבלי דופונט 20CM F-F x4', 'ברגי M3*6mm עגולים x12', 'עמודי נחושת M3*40mm x4', 'מודול בלוטות\' Bluetooth x1', 'מטריצת לדים 8x8 Dot Matrix x1', 'גשרים Jumper Caps x8'], 
-    instructions: [
-      'רכזו את מודול מטריצת הלדים 8x8, מודול הבלוטות\', 4 עמודי נחושת 40 מ"מ והברגים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_42.png` 
-  },
-  { 
-    id: 'step_6.2', 
-    title: 'שלב 6.2: הברגת 4 עמודי נחושת M3*40mm היקפיים (Installing Long Copper Pillars)', 
-    partsNeeded: ['עמודי נחושת M3*40mm x4', 'ברגי M3*6mm x4'], 
-    instructions: [
-      'הברגו 4 עמודי נחושת ארוכים M3*40mm בארבע פינות הלוח העליון.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_42.png` 
-  },
-  { 
-    id: '6.3', 
-    title: 'שלב 6.3: התקנת מודול תצוגת מטריצת הלדים 8*8 בחזית (Mounting 8x8 Matrix Display)', 
-    partsNeeded: ['מודול 8x8 Dot Matrix', 'ברגי M3*6mm x2'], 
-    instructions: [
-      'הרכיבו את מודול תצוגת מטריצת הלדים 8*8 בחזית תושבת הראש להצגת הבעות ופרצופים.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_43.png` 
-  },
-  { 
-    id: '6.4', 
-    title: 'שלב 6.4: חיבור מודול הבלוטות\' DX-BT24 ללוח ההרחבה (Plugging Bluetooth Module)', 
-    partsNeeded: ['מודול בלוטות\' DX-BT24 BLE'], 
-    instructions: [
-      'חברו את מודול הבלוטות\' DX-BT24 לשקע הבלוטות\' הייעודי בלוח הרחבת המנועים 8833.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_47.png` 
-  },
-  { 
-    id: '6.5', 
-    title: 'שלב 6.5: סגירת לוח האקריליק העליון בברגים (Mounting Top Acrylic Cover)', 
-    partsNeeded: ['כיסוי אקריליק עליון', 'ברגי M3*6mm x4'], 
-    instructions: [
-      'הציבו את כיסוי האקריליק מעל 4 עמודי הנחושת 40 מ"מ והדקו בברגי M3*6mm.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_48.png` 
-  },
-
-  // --- STEP 7 ---
-  { 
-    id: '7.1', 
-    title: 'שלב 7.1: חיבור כבלי המנועים ללוח ה-8833 Driver (Wiring Motors to Shield)', 
-    partsNeeded: ['כבלי 2P מנוע ימין ושמאל'], 
-    instructions: [
-      'חברו את כבל מנוע שמאל ליציאת Motor A ואת כבל מנוע ימין ליציאת Motor B בלוח ה-8833 Shield.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_63.png` 
-  },
-  { 
-    id: '7.2', 
-    title: 'שלב 7.2: חיבור כבל חיישן מעקב הקו 5P (Wiring Tracking Sensor)', 
-    partsNeeded: ['כבל 5P חיישן קו'], 
-    instructions: [
-      'חברו את כבל ה-5P של חיישן מעקב הקו משלדת הבסיס לפיני התקשורת A0, A1, A2 בלוח ה-Shield.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_64.png` 
-  },
-  { 
-    id: '7.3', 
-    title: 'שלב 7.3: חיבור כבל חיישן האולטרסוניק (Wiring Ultrasonic Sensor)', 
-    partsNeeded: ['כבל 4P אולטרסוניק'], 
-    instructions: [
-      'חברו את כבל חיישן האולטרסוניק: VCC->5V, GND->GND, Trig->D12, Echo->D13.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_65.png` 
-  },
-  { 
-    id: '7.4', 
-    title: 'שלב 7.4: חיבור כבל מנוע הסרוו לפין D10 (Wiring Servo to D10)', 
-    partsNeeded: ['כבל 3P סרוו'], 
-    instructions: [
-      'חברו את כבל מנוע הסרוו SG90 לשקע הסרוו פין D10 (שימו לב לכיוון: חום->GND, אדום->VCC, כתום->Signal).'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_66.png` 
-  },
-  { 
-    id: '7.5', 
-    title: 'שלב 7.5: חיבור כבלי מטריצת הלדים 8*8 לפיני I2C A4/A5 (Wiring 8x8 Matrix)', 
-    partsNeeded: ['כבלי דופונט מטריצה'], 
-    instructions: [
-      'חברו את מטריצת הלדים 8*8 לפיני התקשורת I2C: SDA->A4, SCL->A5.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_67.png` 
-  },
-  { 
-    id: '7.6', 
-    title: 'שלב 7.6: חיבור תקע החשמל של בית הסוללות לשקע ה-DC (Connecting Power Plug)', 
-    partsNeeded: ['כבל תקע סוללה DC'], 
-    instructions: [
-      'הכניסו את תקע החשמל מבית הסוללות 18650 ישירות לשקע ה-DC Power בלוח ה-V4.0.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_69.png` 
-  },
-  { 
-    id: '7.7', 
-    title: 'שלב 7.7: הגדרת גשרי ה-Jumpers למתח מנועים ובלוטות\' (Configuring Jumpers & Diagram)', 
-    partsNeeded: ['גשרים Jumper Caps'], 
-    instructions: [
-      '1. וודאו שגשרי ה-Jumper Caps מורכבים במצב VIN לבחירת מתח סוללות עבור המנועים.',
-      '2. עיינו בדיאגרמת החיווט הכוללת להפניה מהירה.'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_50.png` 
-  },
-
-  // --- STEP 8 ---
-  { 
-    id: '8.1', 
-    title: 'שלב 8.1: סיום ההרכבה, הכנסת סוללות 18650 ובדיקת תקינות (Complete Smart Robot Car)', 
-    partsNeeded: ['סוללות 18650 נטענות x2', 'רובוט חכם מורכב מוכן'], 
-    instructions: [
-      '1. הכניסו 2 סוללות 18650 נטענות בלחיצה לבית הסוללות.',
-      '2. הפעילו את מתג ההפעלה הראשי. ברכות! הרובוט החכם מורכב ב-100% ומוכן לצריבת קוד!'
-    ], 
-    imgUrl: `${KS0558_IMG_BASE}ZnNc_68.png` 
-  }
-];
-
-const SUPERBOT_CHAPTER_3_PROJECTS = [
-  { id: '3.1', title: 'שיעור 3.1: רובוט אוטונומי חומק ממכשולים בחלל', goal: 'אלגוריתם עקיפת מכשולים אוטונומי מלא בעזרת bot.getDistance() ו-bot.turnRight().' },
-  { id: '3.2', title: 'שיעור 3.2: רובוט אוטונומי עוקב קו שחור', goal: 'אלגוריתם עוקב קו בעזרת bot.checkLine().' },
-  { id: '3.3', title: 'שיעור 3.3: מכונית שלט רחוק אינפרא-אדום מלאה', goal: 'שליטה מלאה בנהיגה דרך שלט IR בעזרת bot.getIRCommand().' },
-  { id: '3.4', title: 'שיעור 3.4: רובוט מצלמה Wi-Fi אינטראקטיבי', goal: 'שליטה וצפייה בוידאו חי ממצלמת הרובוט בדפדפן.' }
-];
-
 const FIREBASE_CHAPTER_4_LESSONS = [
   {
     id: '4.0',
@@ -453,7 +253,7 @@ const FIREBASE_CHAPTER_4_LESSONS = [
       { step: '1', title: 'כניסה ל-Firebase Console', desc: 'היכנס לאתר console.firebase.google.com והתחבר בעזרת חשבון ה-Google שלך.' },
       { step: '2', title: 'יצירת פרויקט חדש (Create a Project)', desc: 'לחץ על "Add project" / "צור פרויקט", הזן שם לפרויקט (למשל edorobot-iot), אשר את התנאים ולחץ "Create Project".' },
       { step: '3', title: 'הקמת בסיס נתונים בזמן אמת (Realtime Database)', desc: 'בתפריט הצדדי לחץ על Build -> Realtime Database, ולאחר מכן לחץ על "Create Database". בחר את מיקום השרת הקרוב ביותר.' },
-      { step: '4', title: 'הגדרת הרשאות גישה (Security Rules)', desc: 'במסךבחירת ההרשאות בחר ב-"Start in test mode" (מצב ניסיון) כך שהרשאות הקריאה והכתיבה יוגדרו כציבוריות (.read: true, .write: true).' },
+      { step: '4', title: 'הגדרת הרשאות גישה (Security Rules)', desc: 'במסך בחירת ההרשאות בחר ב-"Start in test mode" (מצב ניסיון) כך שהרשאות הקריאה והכתיבה יוגדרו כציבוריות (.read: true, .write: true).' },
       { step: '5', title: 'העתקת ה-URL ומפתח האבטחה (Database URL & Auth Secret)', desc: 'העתק את כתובת ה-URL של בסיס הנתונים (למשל edorobot-e9cb1-default-rtdb.firebaseio.com), ועבור להגדרות הפרויקט (Project Settings -> Service Accounts -> Database secrets) כדי להעתיק את Secret Key.' }
     ]
   },
@@ -494,14 +294,40 @@ const FIREBASE_CHAPTER_4_LESSONS = [
   }
 ];
 
-const SUPERBOT_CHAPTERS = [
-  { id: 'ch1', title: '🛠️ פרק 1: הרכבה מכאנית וזיווד מפורט - Keyestudio KS0558 Smart Little Turtle Robot V3.0 (Smart Robot)', description: 'מדריך הרכבה מקיף צעד-אחר-צעד עם תמונות ברזולוציה גבוהה ורשימת רכיבים מלאה לפי תיעוד Keyestudio הרשמי', lessons: SUPERBOT_ASSEMBLY_STEPS },
-  { id: 'ch2', title: '💻 פרק 2: תכנות חיישנים ומודולים ב-Smart Robot (10 שיעורים)', description: 'שיעורי תכנות בבלוקים ובקוד C++ לפי ספריית SuperBot', lessons: SUPERBOT_CHAPTER_2_LESSONS },
-  { id: 'ch3', title: '🚀 פרק 3: פרויקטים אוטונומיים מתקדמים ב-Smart Robot', description: 'פרויקטים אוטונומיים משולבים', lessons: SUPERBOT_CHAPTER_3_PROJECTS },
-  { id: 'ch4', title: '🔥 פרק 4: תקשורת ענן ו-Firebase IoT (5 שיעורים + מדריך פתיחת פרויקט)', description: 'חיבור בקר ESP32 לבסיס נתונים בענן ב-Firebase Realtime Database לשליטה ודיווח בזמן אמת', lessons: FIREBASE_CHAPTER_4_LESSONS }
+const COURSE_CHAPTERS = [
+  { id: 'ch1', title: '🛠️ פרק 1: הרכבה מכאנית וזיווד מפורט (32 שלבי CAD)', description: 'מדריך הרכבת CAD מקורי מלא 32 שלבים מתוך האתר הרשמי', lessons: ASSEMBLY_STEPS_ALL },
+  {
+    id: 'ch2',
+    title: '💻 פרק 2: תכנות מונחה עצמים (OOP) ושימוש בספריית הרובוט (10 שיעורים)',
+    description: 'משימות תכנות ב-C++ מונחה עצמים (Object-Oriented Programming) בעזרת הבלוקים הייעודיים לרובוט',
+    lessons: OOP_CHAPTER_2_LESSONS
+  },
+  {
+    id: 'ch3',
+    title: '🚀 פרק 3: פרויקטים אוטונומיים ואפליקציות (10 שיעורים)',
+    description: 'בניית פרויקטים רובוטיים מתקדמים ואפליקציות Wi-Fi',
+    lessons: [
+      { id: '3.1', title: 'שיעור 3.1: רובוט אוטונומי חומק ממכשולים בחלל', goal: 'אלגוריתם עקיפת מכשולים אוטונומי מלא.' },
+      { id: '3.2', title: 'שיעור 3.2: רובוט עוקב אור (Light Tracing Car)', goal: 'ניווט לעבר מקור אור חזק.' },
+      { id: '3.3', title: 'שיעור 3.3: רובוט אוטונומי עוקב קו שחור', goal: 'אלגוריתם PID עוקב קו מהיר.' },
+      { id: '3.4', title: 'שיעור 3.4: מכונית שלט רחוק אינפרא-אדום', goal: 'שליטה מלאה בנהיגה דרך שלט IR.' },
+      { id: '3.5', title: 'שיעור 3.5: מכונית מרובת מצבים (Multi-Mode Smart Car)', goal: 'מעבר בין מצבים בלחיצת כפתור בשלט.' },
+      { id: '3.6', title: 'שיעור 3.6: הגדרת נקודת גישה Wi-Fi (AP Mode)', goal: 'הפעלת רשת Wi-Fi עצמאית ב-ESP32.' },
+      { id: '3.7', title: 'שיעור 3.7: שרת אינטרנט לבקרת נהיגה (ESP32 Web Server)', goal: 'דף אינטרנט פנימי לשליטה ברובוט.' },
+      { id: '3.8', title: 'שיעור 3.8: שידור וידאו בזמן אמת ממצלמת ESP32-CAM', goal: 'שידור וידאו בלייב לדפדפן.' },
+      { id: '3.9', title: 'שיעור 3.9: אפליקציית שלט רחוק ב-AppInventor', goal: 'אפליקציית Android/iOS מותאמת אישית.' },
+      { id: '3.10', title: 'שיעור 3.10: פרויקט סיום: רובוט מתקדם רב-משימתי', goal: 'שילוב כל היכולות לפרויקט גמר יוקרתי!' }
+    ]
+  },
+  {
+    id: 'ch4',
+    title: '🔥 פרק 4: תקשורת ענן ו-Firebase IoT (5 שיעורים + מדריך פתיחת פרויקט)',
+    description: 'חיבור בקר ESP32 לבסיס נתונים בענן ב-Firebase Realtime Database לשליטה ודיווח בזמן אמת',
+    lessons: FIREBASE_CHAPTER_4_LESSONS
+  }
 ];
 
-function RobotSmall() {
+function FreenoveCar() {
   const [selectedLessonId, setSelectedLessonId] = useState('step_0.0');
   const [completedLessons, setCompletedLessons] = useState({});
 
@@ -514,7 +340,7 @@ function RobotSmall() {
   // Workspace Controls State
   const [selectedBoard, setSelectedBoard] = useState('esp32');
   const [comPort, setComPort] = useState('COM3');
-  const [filename, setFilename] = useState('superbot_code.ino');
+  const [filename, setFilename] = useState('superbot_car.ino');
   const [isEditorVisible, setIsEditorVisible] = useState(true);
 
   // MULTI-FILE CODE EDITOR TABS STATE
@@ -554,7 +380,7 @@ function RobotSmall() {
   let currentLesson = null;
   let currentChapter = null;
 
-  SUPERBOT_CHAPTERS.forEach(ch => {
+  COURSE_CHAPTERS.forEach(ch => {
     ch.lessons.forEach(l => {
       if (l.id === selectedLessonId) {
         currentLesson = l;
@@ -564,17 +390,18 @@ function RobotSmall() {
   });
 
   if (!currentLesson) {
-    currentLesson = SUPERBOT_CHAPTER_2_LESSONS[0];
-    currentChapter = SUPERBOT_CHAPTERS[1];
+    currentLesson = OOP_CHAPTER_2_LESSONS[0];
+    currentChapter = COURSE_CHAPTERS[1];
   }
 
   // Calculate Total Lessons across all chapters
   let totalLessonsCount = 0;
-  SUPERBOT_CHAPTERS.forEach(ch => { totalLessonsCount += ch.lessons.length; });
+  COURSE_CHAPTERS.forEach(ch => { totalLessonsCount += ch.lessons.length; });
 
   // Load clean & focused robot toolbox configuration
   const loadToolboxConfiguration = () => {
     registerAllBlocks();
+    registerFreenoveCarBasicBlocks();
 
     const robotToolbox = {
       kind: 'categoryToolbox',
@@ -599,6 +426,11 @@ function RobotSmall() {
             { kind: 'block', type: 'superbot_is_dark' },
             { kind: 'block', type: 'superbot_camera_begin' },
             { kind: 'block', type: 'superbot_beep' },
+            { kind: 'block', type: 'freenove_motor_drive' },
+            { kind: 'block', type: 'freenove_servo_angle' },
+            { kind: 'block', type: 'freenove_ultrasonic_distance' },
+            { kind: 'block', type: 'freenove_line_sensor' },
+            { kind: 'block', type: 'freenove_delay' },
             { kind: 'block', type: 'superbot_shape_dance' },
             { kind: 'block', type: 'superbot_grand_finale' },
             { kind: 'block', type: 'superbot_line_tracking' },
@@ -755,7 +587,7 @@ function RobotSmall() {
     alert(`🎉 כל הכבוד! השלמת בהצלחה את "${currentLesson.title}"!`);
 
     let allLessons = [];
-    SUPERBOT_CHAPTERS.forEach(ch => allLessons.push(...ch.lessons));
+    COURSE_CHAPTERS.forEach(ch => allLessons.push(...ch.lessons));
     const currentIdx = allLessons.findIndex(l => l.id === selectedLessonId);
     if (currentIdx < allLessons.length - 1) {
       setSelectedLessonId(allLessons[currentIdx + 1].id);
@@ -774,7 +606,7 @@ function RobotSmall() {
       document.body.removeChild(element);
     };
 
-    const mainName = filename || "superbot_code.ino";
+    const mainName = filename || "superbot_car.ino";
     const mainContent = generatedCode || `#include "SuperBot.h"\n\nSuperBot bot;\n\nvoid setup() {\n  bot.begin();\n}\n\nvoid loop() {\n}`;
     
     downloadSingle(mainContent, mainName);
@@ -815,8 +647,8 @@ function RobotSmall() {
               handleSaveCode();
               setFlashingMode('flash'); 
               setShowFlashingModal(true); 
-            }} className="builder-btn builder-btn-hero" style={{ background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)' }}>
-              🚀 צרוב ל-SuperBot / ESP32
+            }} className="builder-btn builder-btn-hero">
+              🚀 צרוב ל-ESP32 / SuperBot
             </button>
             <button onClick={() => { 
               handleSaveCode();
@@ -857,7 +689,7 @@ function RobotSmall() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
               <span style={{ fontWeight: 'bold', color: '#475569' }}>בחר לוח:</span>
-              <select value={selectedBoard} onChange={(e) => setSelectedBoard(e.target.value)} className="builder-select-box" style={{ padding: '4px 8px', fontWeight: 'bold', color: '#ea580c' }}>
+              <select value={selectedBoard} onChange={(e) => setSelectedBoard(e.target.value)} className="builder-select-box" style={{ padding: '4px 8px', fontWeight: 'bold', color: '#4338ca' }}>
                 <option value="esp32">🔥 ESP32 Dev Module</option>
                 <option value="uno">🤖 Arduino Uno</option>
               </select>
@@ -887,7 +719,7 @@ function RobotSmall() {
           <div className="builder-blockly-wrapper" style={{ flex: 1, height: '100%', position: 'relative', minHeight: '580px', direction: 'rtl' }}>
             <div 
               ref={blocklyDivRef} 
-              id="superbotBlocklyDiv"
+              id="freenoveBlocklyDiv"
               style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} 
             />
           </div>
@@ -900,7 +732,7 @@ function RobotSmall() {
             >
               {/* Header Title & Close Button */}
               <div className="code-panel-header" style={{ padding: '10px 14px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155' }}>
-                <span style={{ color: '#ff9900', fontSize: '0.85rem', fontWeight: 'bold' }}>💻 עורך קוד מרובה קבצים (SuperBot C++)</span>
+                <span style={{ color: '#38bdf8', fontSize: '0.85rem', fontWeight: 'bold' }}>💻 עורך קוד מרובה קבצים (C++ / Arduino)</span>
                 <button 
                   onClick={() => setIsEditorVisible(false)}
                   style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold' }}
@@ -916,16 +748,16 @@ function RobotSmall() {
                   style={{
                     padding: '8px 12px',
                     background: activeFileTab === 'main' ? '#1e293b' : 'transparent',
-                    color: activeFileTab === 'main' ? '#ff9900' : '#94a3b8',
+                    color: activeFileTab === 'main' ? '#38bdf8' : '#94a3b8',
                     border: 'none',
-                    borderBottom: activeFileTab === 'main' ? '2px solid #ff9900' : '2px solid transparent',
+                    borderBottom: activeFileTab === 'main' ? '2px solid #38bdf8' : '2px solid transparent',
                     cursor: 'pointer',
                     fontSize: '0.82rem',
                     fontWeight: 'bold',
                     borderRadius: '6px 6px 0 0'
                   }}
                 >
-                  📄 {filename || 'superbot_code.ino'}
+                  📄 {filename || 'superbot_car.ino'}
                 </button>
 
                 <button
@@ -933,9 +765,9 @@ function RobotSmall() {
                   style={{
                     padding: '8px 12px',
                     background: activeFileTab === 'header' ? '#1e293b' : 'transparent',
-                    color: activeFileTab === 'header' ? '#ff9900' : '#94a3b8',
+                    color: activeFileTab === 'header' ? '#38bdf8' : '#94a3b8',
                     border: 'none',
-                    borderBottom: activeFileTab === 'header' ? '2px solid #ff9900' : '2px solid transparent',
+                    borderBottom: activeFileTab === 'header' ? '2px solid #38bdf8' : '2px solid transparent',
                     cursor: 'pointer',
                     fontSize: '0.82rem',
                     fontWeight: 'bold',
@@ -950,9 +782,9 @@ function RobotSmall() {
                   style={{
                     padding: '8px 12px',
                     background: activeFileTab === 'cpp' ? '#1e293b' : 'transparent',
-                    color: activeFileTab === 'cpp' ? '#ff9900' : '#94a3b8',
+                    color: activeFileTab === 'cpp' ? '#38bdf8' : '#94a3b8',
                     border: 'none',
-                    borderBottom: activeFileTab === 'cpp' ? '2px solid #ff9900' : '2px solid transparent',
+                    borderBottom: activeFileTab === 'cpp' ? '2px solid #38bdf8' : '2px solid transparent',
                     cursor: 'pointer',
                     fontSize: '0.82rem',
                     fontWeight: 'bold',
@@ -1027,10 +859,10 @@ function RobotSmall() {
           </Link>
           <div style={{ marginRight: '16px', display: 'flex', flexDirection: 'column' }}>
             <span className="builder-brand-title" style={{ fontSize: '1.15rem' }}>
-              🤖 רובוט חכם (SuperBot Smart Robot)
+              ⚡ עורך קוד וצריבה ללוח (ESP32 / SuperBot C++)
             </span>
             <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-              ספריית SuperBot C++ | {currentChapter.title} - {currentLesson.title}
+              פרויקט לימודי מקיף | {currentChapter.title} - {currentLesson.title}
             </span>
           </div>
         </div>
@@ -1040,13 +872,13 @@ function RobotSmall() {
           <button 
             onClick={() => setShowAIModal(true)}
             className="builder-btn builder-btn-hero"
-            style={{ background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)', color: '#ffffff', border: 'none', fontWeight: '800' }}
+            style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: '#ffffff', border: 'none', fontWeight: '800' }}
           >
             ✨ מחולל AI לבלוקים
           </button>
 
-          <span className="builder-btn builder-btn-hero" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5' }}>
-            📚 תוכנית הלימודים והשיעורים (SuperBot)
+          <span className="builder-btn builder-btn-hero" style={{ background: '#f1f5f9', color: '#4338ca', border: '1px solid #cbd5e1' }}>
+            📚 תוכנית הלימודים וההרכבה המלאה (32 שלבי CAD)
           </span>
         </div>
       </div>
@@ -1058,14 +890,14 @@ function RobotSmall() {
         {!currentLesson.isWelcomePage && (
           <div style={{ width: '340px', background: '#ffffff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0 }}>
             <div style={{ padding: '16px 20px', background: '#0f172a', color: '#ffffff' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: '800', margin: 0 }}>🤖 תוכנית השיעורים (SuperBot)</h3>
-              <div style={{ fontSize: '0.78rem', color: '#ff9900', marginTop: '4px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: '800', margin: 0 }}>🏎️ תוכנית השיעורים (4WD Pro)</h3>
+              <div style={{ fontSize: '0.78rem', color: '#818cf8', marginTop: '4px' }}>
                 {Object.keys(completedLessons).length} מתוך {totalLessonsCount} שיעורים הושלמו
               </div>
             </div>
 
             <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {SUPERBOT_CHAPTERS.map(ch => (
+              {COURSE_CHAPTERS.map(ch => (
                 <div key={ch.id} style={{ borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', background: '#f1f5f9', fontWeight: '800', fontSize: '0.85rem', color: '#334155' }}>
                     {ch.title}
@@ -1081,17 +913,17 @@ function RobotSmall() {
                           style={{
                             padding: '10px 14px',
                             textAlign: 'right',
-                            background: isSelected ? '#ffedd5' : '#ffffff',
+                            background: isSelected ? '#e0e7ff' : '#ffffff',
                             border: 'none',
                             borderBottom: '1px solid #f1f5f9',
-                            borderRight: isSelected ? '4px solid #f97316' : 'none',
+                            borderRight: isSelected ? '4px solid #4f46e5' : 'none',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justify: 'space-between',
                             fontSize: '0.82rem',
                             fontWeight: isSelected ? '800' : '500',
-                            color: isSelected ? '#c2410c' : '#475569'
+                            color: isSelected ? '#4338ca' : '#475569'
                           }}
                         >
                           <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1118,7 +950,7 @@ function RobotSmall() {
             {!currentLesson.isWelcomePage && (
               <div style={{ background: '#ffffff', padding: '24px 32px', borderRadius: '24px', border: '1px solid #cbd5e1', boxShadow: '0 4px 20px rgba(15,23,42,0.04)', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '0.9rem', padding: '6px 14px', borderRadius: '12px', background: '#ffedd5', color: '#ea580c', fontWeight: 'bold' }}>
+                  <span style={{ fontSize: '0.9rem', padding: '6px 14px', borderRadius: '12px', background: '#e0e7ff', color: '#4f46e5', fontWeight: 'bold' }}>
                     {currentChapter.title}
                   </span>
                   <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 'bold' }}>שיעור {currentLesson.id}</span>
@@ -1131,41 +963,41 @@ function RobotSmall() {
 
             {/* 🌌 FULL-WIDTH FUTURISTIC WORLD OF ROBOTICS WELCOME LANDING */}
             {currentLesson.isWelcomePage && (
-              <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(135deg, #090d16 0%, #1e1b4b 50%, #ea580c 100%)', color: '#ffffff', padding: '48px 32px', direction: 'rtl', boxSizing: 'border-box' }}>
+              <div style={{ width: '100%', minHeight: '100vh', background: 'linear-gradient(135deg, #090d16 0%, #1e1b4b 50%, #4f46e5 100%)', color: '#ffffff', padding: '48px 32px', direction: 'rtl', boxSizing: 'border-box' }}>
                 <div style={{ maxWidth: '1350px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '40px' }}>
                   
                   {/* HERO BANNER & SHOWCASE */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '36px', alignItems: 'center' }}>
                     <div>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 20px', borderRadius: '30px', background: 'rgba(251, 146, 60, 0.15)', border: '1px solid rgba(251, 146, 60, 0.3)', color: '#fdba74', fontSize: '0.9rem', fontWeight: '800', marginBottom: '20px' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 20px', borderRadius: '30px', background: 'rgba(129, 140, 248, 0.15)', border: '1px solid rgba(129, 140, 248, 0.3)', color: '#a5b4fc', fontSize: '0.9rem', fontWeight: '800', marginBottom: '20px' }}>
                         ✨ ברוכים הבאים לעולם הרובוטיקה והפיתוח העתידני
                       </div>
 
-                      <h1 style={{ fontSize: 'clamp(2.2rem, 4vw, 3.5rem)', fontWeight: '900', lineHeight: '1.2', margin: '0 0 18px 0', background: 'linear-gradient(135deg, #ffffff 0%, #fdba74 60%, #ff9900 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        🤖 רובוט צב חכם Keyestudio (KS0558 V3.0)
+                      <h1 style={{ fontSize: 'clamp(2.2rem, 4vw, 3.5rem)', fontWeight: '900', lineHeight: '1.2', margin: '0 0 18px 0', background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 60%, #38bdf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        🏎️ רובוט מכונית 4WD Pro (Freenove ESP32)
                       </h1>
 
                       <p style={{ fontSize: '1.15rem', color: '#cbd5e1', lineHeight: '1.8', margin: '0 0 32px 0', fontWeight: '400' }}>
-                        כנס לעולם הרובוטיקה הניידת! הרכב במו ידיך את רובוט הצב החכם V3.0, חבר חיישני אולטרסוניק לזיהוי ועקיפת מכשולים, תכנת מטריצת לדים 8x8 להצגת פרצופים חמודים, ושלול ברובוט מרחוק דרך שלט IR ו-Bluetooth!
+                        צא למסע מרגש בעולם הרובוטיקה המתקדם! הרכב במו ידיך מכונית 4WD Pro עוצמתית, תכנת מנועי סרוו דו-ציריים (Pan-Tilt), חבר מצלמת Wi-Fi לשידור וידאו חי, ותכנת אלגוריתמים אוטונומיים למעקב קו ועקיפת מכשולים!
                       </p>
 
                       <button 
-                        onClick={() => setSelectedLessonId('step_1.1')} 
-                        style={{ padding: '18px 42px', borderRadius: '16px', background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)', color: '#ffffff', border: 'none', fontWeight: '900', fontSize: '1.15rem', cursor: 'pointer', boxShadow: '0 12px 35px rgba(255, 153, 0, 0.45)', transition: 'all 0.3s ease' }}
+                        onClick={() => setSelectedLessonId('1.0')} 
+                        style={{ padding: '18px 42px', borderRadius: '16px', background: 'linear-gradient(135deg, #4F46E5 0%, #7E22CE 100%)', color: '#ffffff', border: 'none', fontWeight: '900', fontSize: '1.15rem', cursor: 'pointer', boxShadow: '0 12px 35px rgba(79, 70, 229, 0.45)', transition: 'all 0.3s ease' }}
                       >
                         🚀 היכנס לעולם הרובוטיקה והתחל בהרכבה צעד-אחר-צעד ➔
                       </button>
                     </div>
 
                     {/* HERO PROTOTYPE SHOWCASE CARD */}
-                    <div style={{ background: 'rgba(15, 23, 42, 0.65)', border: '2px solid rgba(251, 146, 60, 0.3)', borderRadius: '28px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', color: '#fdba74', fontWeight: '800', marginBottom: '12px' }}>
-                        📸 דגם מוגמר סופי - Smart Turtle Robot V3.0
+                    <div style={{ background: 'rgba(15, 23, 42, 0.65)', border: '2px solid rgba(129, 140, 248, 0.3)', borderRadius: '28px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', color: '#818cf8', fontWeight: '800', marginBottom: '12px' }}>
+                        📸 דגם מוגמר סופי - 4WD Smart Car Pro
                       </span>
                       <div style={{ width: '100%', height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: '20px', padding: '16px' }}>
                         <img 
-                          src={TURTLE_HERO} 
-                          alt="Smart Turtle Robot Prototype"
+                          src={CAR_4WD_HERO} 
+                          alt="4WD Smart Car Pro Prototype"
                           style={{ maxWidth: '100%', maxHeight: '290px', objectFit: 'contain' }}
                         />
                       </div>
@@ -1184,10 +1016,10 @@ function RobotSmall() {
                   </div>
 
                   {/* FULL-WIDTH CINEMA VIDEO STAGE */}
-                  <div style={{ background: 'rgba(15, 23, 42, 0.75)', border: '2px solid rgba(251, 146, 60, 0.3)', borderRadius: '28px', padding: '28px', backdropFilter: 'blur(20px)', marginTop: '12px' }}>
+                  <div style={{ background: 'rgba(15, 23, 42, 0.75)', border: '2px solid rgba(129, 140, 248, 0.3)', borderRadius: '28px', padding: '28px', backdropFilter: 'blur(20px)', marginTop: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', padding: '0 8px' }}>
                       <span style={{ color: '#ffffff', fontWeight: '900', fontSize: '1.2rem' }}>
-                        🎬 סרטון הדגמה בלייב: רובוט הצב החכם בפעולה!
+                        🎬 סרטון הדגמה בלייב: רובוט מכונית 4WD Pro בפעולה!
                       </span>
                       <a href={currentLesson.videoLink} target="_blank" rel="noreferrer" style={{ color: '#38bdf8', fontSize: '0.95rem', fontWeight: 'bold', textDecoration: 'none' }}>
                         📺 פתח בלשונית חדשה ↗
@@ -1250,16 +1082,16 @@ function RobotSmall() {
             {currentLesson.instructions && (
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1.2fr) minmax(360px, 1fr)', gap: '28px', marginBottom: '28px' }}>
                 
-                {/* CAD IMAGE COLUMN */}
+                {/* OFFICIAL FREENOVE CAD IMAGE COLUMN */}
                 <div style={{ background: '#ffffff', padding: '28px', borderRadius: '24px', border: '1.5px solid #cbd5e1', boxShadow: '0 6px 24px rgba(15,23,42,0.04)', textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                      📐 תמונת הרכבה מקורית (Keyestudio KS0558 Docs):
+                      📐 תמונת CAD הרכבה מקורית (Freenove Official Docs):
                     </h4>
                     <button 
                       onClick={() => setZoomImageSrc(currentLesson.imgUrl)} 
                       className="builder-btn"
-                      style={{ padding: '8px 18px', fontSize: '0.85rem', background: '#fff7ed', color: '#c2410c', fontWeight: '800', border: '1.5px solid #ffedd5' }}
+                      style={{ padding: '8px 18px', fontSize: '0.85rem', background: '#f5f3ff', color: '#4338ca', fontWeight: '800', border: '1.5px solid #c7d2fe' }}
                     >
                       🔍 הגדל מסך מלא
                     </button>
@@ -1331,8 +1163,8 @@ function RobotSmall() {
                   
                   {/* COLUMN 1: BLOCKS NEEDED FOR THIS CHALLENGE */}
                   {currentLesson.neededBlocks && (
-                    <div style={{ background: '#fff7ed', padding: '20px', borderRadius: '18px', border: '1.5px solid #ffedd5', display: 'flex', flexDirection: 'column' }}>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#c2410c', margin: 0, marginBottom: '14px' }}>
+                    <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '18px', border: '1.5px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: '800', color: '#4338ca', margin: 0, marginBottom: '14px' }}>
                         🧩 הבלוקים הנדרשים לבניית המשימה:
                       </h4>
                       <p style={{ fontSize: '0.88rem', color: '#64748b', marginBottom: '16px', fontWeight: '500' }}>
@@ -1346,11 +1178,11 @@ function RobotSmall() {
                               padding: '10px 18px', 
                               borderRadius: '14px', 
                               background: '#ffffff', 
-                              color: '#7c2d12', 
+                              color: '#1e1b4b', 
                               fontSize: '0.92rem', 
                               fontWeight: '800', 
-                              border: '2px solid #f97316',
-                              boxShadow: '0 4px 12px rgba(249,115,22,0.08)',
+                              border: '2px solid #6366f1',
+                              boxShadow: '0 4px 12px rgba(99,102,241,0.08)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '6px'
@@ -1365,7 +1197,7 @@ function RobotSmall() {
 
                   {/* COLUMN 2: C++ TARGET CODE STRUCTURE PREVIEW */}
                   <div style={{ background: '#0f172a', padding: '20px', borderRadius: '18px', direction: 'ltr', textAlign: 'left', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ color: '#ff9900', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '12px', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+                    <div style={{ color: '#38bdf8', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '12px', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
                       💻 קוד C++ המיועד להיווצר בלייב:
                     </div>
                     <pre style={{ margin: 0, color: '#f1f5f9', fontSize: '0.9rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', flex: 1 }}>
@@ -1379,7 +1211,7 @@ function RobotSmall() {
                 <button 
                   onClick={handleOpenWorkspaceInNewWindow} 
                   className="builder-btn builder-btn-hero" 
-                  style={{ padding: '16px 32px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)', boxShadow: '0 10px 25px rgba(249,115,22,0.3)' }}
+                  style={{ padding: '16px 32px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', boxShadow: '0 10px 25px rgba(99,102,241,0.3)' }}
                 >
                   🧪 פתח את סביבת העבודה לתרגול המשימה בחלונית חדשה ↗
                 </button>
@@ -1388,7 +1220,7 @@ function RobotSmall() {
 
             {!currentLesson.isWelcomePage && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-                <button onClick={handleCompleteLesson} className="builder-btn builder-btn-hero" style={{ padding: '16px 36px', fontSize: '1.05rem', background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)' }}>
+                <button onClick={handleCompleteLesson} className="builder-btn builder-btn-hero" style={{ padding: '16px 36px', fontSize: '1.05rem' }}>
                   🎉 סיימתי את השיעור! עבר לשיעור הבא ←
                 </button>
               </div>
@@ -1465,7 +1297,7 @@ function RobotSmall() {
 
             <img 
               src={zoomImageSrc} 
-              alt="Zoomed SuperBot Schematic" 
+              alt="Zoomed Official CAD Schematic" 
               style={{
                 maxWidth: '100%',
                 maxHeight: '75vh',
@@ -1501,4 +1333,4 @@ function RobotSmall() {
   );
 }
 
-export default RobotSmall;
+export default FreenoveCar;

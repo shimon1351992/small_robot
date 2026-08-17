@@ -1,0 +1,17 @@
+{
+  "kind": "categoryToolbox",
+  "contents": [
+    {
+      "kind": "category",
+      "name": "בית חכם",
+      "contents": [
+       
+
+        { "kind": "block", "type": "html_button" },
+        { "kind": "block", "type": "html_input" },
+        { "kind": "block", "type": "html_text" }
+      ]
+    }
+  
+  ]
+}

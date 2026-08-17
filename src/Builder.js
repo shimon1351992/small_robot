@@ -4,6 +4,10 @@ import { javascriptGenerator } from 'blockly/javascript';
 import MonacoEditor from 'react-monaco-editor';
 import ReactFlow, { Controls, Background } from 'react-flow-renderer';
 import BlockObject from './BlockObject'; // ייבוא המחלקה
+import { registerAllBlocks, getAllRegisteredBlocks, registerFallbackBlock, registerSingleBlock, SYSTEM_CUSTOM_BLOCKS, addBlockToRegistry } from './blockRegistry';
+import AIBlockGeneratorModal from './AIBlockGeneratorModal';
+import FlashingModal from './FlashingModal';
+import ComPortStatusBadge from './ComPortStatusBadge';
 
 
 // Define these outside of the Builder component
@@ -21,10 +25,55 @@ function Builder({ initialXml }) {
   const [generatedCode, setGeneratedCode] = useState('');
   const [workspace, setWorkspace] = useState(null);
   const [toolboxConfiguration, setToolboxConfiguration] = useState(null);
+  const [selectedBoard, setSelectedBoard] = useState('esp32');
+  const [comPort, setComPort] = useState('COM3');
+  const [compileResult, setCompileResult] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isEditorVisible, setIsEditorVisible] = useState(false);
   const [filename, setFilename] = useState('arduino_code.ino');
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showAIGeneratorModal, setShowAIGeneratorModal] = useState(false);
+  const [showFlashingModal, setShowFlashingModal] = useState(false);
+  const [flashingMode, setFlashingMode] = useState('flash');
+  const [inlineAiPrompt, setInlineAiPrompt] = useState('');
+  const [isGeneratingInlineBlock, setIsGeneratingInlineBlock] = useState(false);
   const saveWorkspaceRef = useRef(null);
-  const [showNewBlockForm, setShowNewBlockForm] = useState(false);
+
+  const handleGenerateAIBlockInline = () => {
+    if (!inlineAiPrompt.trim()) return;
+    setIsGeneratingInlineBlock(true);
+
+    setTimeout(() => {
+      const generatedId = `ai_block_${Date.now()}`;
+      const isReturnVal = inlineAiPrompt.includes('מחזיר') || inlineAiPrompt.includes('קרא') || inlineAiPrompt.includes('ערך');
+      
+      const newBlock = {
+        id: generatedId,
+        name: inlineAiPrompt.length > 28 ? inlineAiPrompt.substring(0, 28) + '...' : inlineAiPrompt,
+        type: isReturnVal ? 'value' : 'statement',
+        color: isReturnVal ? '#10b981' : '#6366f1',
+        tooltip: inlineAiPrompt,
+        codeTemplate: `// AI Generated Code for: ${inlineAiPrompt}\n// System Ready.`
+      };
+
+      addBlockToRegistry(newBlock);
+      registerAllBlocks();
+      setIsGeneratingInlineBlock(false);
+      setInlineAiPrompt('');
+      setShowAIGeneratorModal(false);
+      alert(`🎉 הבלוק "${newBlock.name}" נוצר והתווסף לסביבת העבודה!`);
+    }, 600);
+  };
+
+  const handleCompile = async () => {
+    setFlashingMode('compile');
+    setShowFlashingModal(true);
+  };
+
+  const handleUpload = async () => {
+    setFlashingMode('flash');
+    setShowFlashingModal(true);
+  };
 
   const [newBlockName, setNewBlockName] = useState('');
   const [newBlockColor, setNewBlockColor] = useState('#4286f4');
@@ -118,7 +167,7 @@ void setup() {
   pinMode(fanpin18, OUTPUT);
   pinMode(motionsensore14, INPUT);
   doorServo.attach(5);
-  windowServo.attach(13);
+  windowServo.attach(5);
 
   lcd.begin();
   lcd.display();
@@ -151,7 +200,7 @@ int getSteamSensorTemperature(int numofPin) {
 
 //פונקציה להמרה הערך של חיישן גז
 int getGasSensorValue(int gasPin) {
-  int sensorValue = analogRead(gasPin);
+  int sensorValue = digitalRead(gasPin);
   Serial.print("Gas Sensor Value: ");
   Serial.println(sensorValue);
 
@@ -2017,11 +2066,6 @@ const initializeBlockly = () => {
 
           const arduinoCodeBlock = ws.getAllBlocks().find((block) => block.type === 'infinite_loop');
 
-          if (arduinoCodeBlock) {
-            setupCode = javascriptGenerator.statementToCode(arduinoCodeBlock, 'SETUP');
-            loopCode = javascriptGenerator.statementToCode(arduinoCodeBlock, 'LOOP');
-          }
-
           for (const block of ws.getAllBlocks()) {
             try {
               if (block.type === 'variables_create') {
@@ -2088,6 +2132,7 @@ const initializeBlockly = () => {
   };
 
   useEffect(() => {
+    registerAllBlocks();
     const fetchToolboxConfiguration = async () => {
       try {
         const response = await fetch('toolbox.json');
@@ -2113,279 +2158,238 @@ const initializeBlockly = () => {
     }
   }, [workspace]);
 
-    const handleDownload = () => {
+  const handleDownload = () => {
     const blob = new Blob([generatedCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = filename; // Use the filename from the state
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-
-   const toggleEditorVisibility = () => { // פונקציה לשינוי מצב התצוגה
+  const toggleEditorVisibility = () => {
     setIsEditorVisible(!isEditorVisible);
-  };
-    const saveWorkspaceButtonClick = () => {
-    saveWorkspaceRef.current();
-    alert('Workspace saved!');
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
   };
 
-
+  const saveWorkspaceButtonClick = () => {
+    if (saveWorkspaceRef.current) {
+      saveWorkspaceRef.current();
+      alert('Workspace saved!');
+    }
+  };
 
   return (
-    
-    
-    
-<div
-  style={{
-    width: '100%',
-    height: '800px',
-    // position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-   
-  }}
->
-  {/* חלק ה־ReactFlow בתוך אזור הגלילה */}
-  <div style={{ width: '100%', flex: 1, overflow: 'auto' ,}}>
-    <div style={{ width: '5000px', height: '10000px', }}>
-      <ReactFlow
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        // nodes={nodes}
-        // edges={edges}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Controls />
-        <Background color="#eee" gap={16} />
-      </ReactFlow>
-    </div>
-  </div>
+    <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', direction: 'rtl', overflow: 'hidden' }}>
+      {/* סרגל כלים עליון מעוצב (Clean Studio Header Toolbar) */}
+      <div className="builder-header-toolbar">
+        <div className="builder-brand-group">
+          <span className="builder-brand-title">🧩 סביבת פיתוח בבלוקים</span>
+          <span style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: '12px', background: '#e0e7ff', color: '#4f46e5', fontWeight: 'bold' }}>
+            SmartStart Studio
+          </span>
+        </div>
 
-  {/* הבלוקים של Blockly */}
-  <div
-    ref={blocklyDiv}
-    id="blocklyDiv"
-    style={{
-      width: '100%',
-      height: '7000px',
-      position: '-moz-initial',
-     
-      zIndex: 2,
-    }}
-  ></div>
+        {/* Quick Status Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f5f9', padding: '5px 14px', borderRadius: '20px', fontSize: '0.82rem', color: '#475569', fontWeight: '700' }}>
+          <span>🔥 {selectedBoard === 'esp32' ? 'ESP32 Dev Module' : selectedBoard}</span>
+          <span>•</span>
+          <span>🔌 {comPort}</span>
+          <span>•</span>
+          <span>📄 {filename}</span>
+        </div>
 
-    {/* כפתור להצגה/הסתרה של עורך הקוד */}
-   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '100px' }}>
-  <label htmlFor="filename" style={{ marginRight: '5px', marginTop: '10px', }}>שם קובץ:</label>
-  <input
-    type="text"
-    id="filename"
-    value={filename}
-    onChange={(e) => setFilename(e.target.value)}
-    style={{
-      marginRight: '10px',
-       marginTop: '10px',
-      padding: '8px',
-      fontSize: '14px',
-      borderRadius: '5px',
-      border: '1px solid #ccc',
-    }}
-  />
-    <button
-    onClick={handleDownload}
-    style={{
-      backgroundColor: '#4CAF50',
-      border: 'none',
-      color: 'white',
-      padding: '8px 16px',
-      textAlign: 'center',
-      textDecoration: 'none',
-      display: 'inline-block',
-       marginTop: '10px',
-      fontSize: '14px',
-      marginRight: '10px',
-      cursor: 'pointer',
-      borderRadius: '5px',
-      boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-      transition: 'background-color 0.3s ease',
-    }}
-  >
-    הורד קוד
-  </button>
-  <button
-    onClick={toggleEditorVisibility}
-    style={{
-      backgroundColor: '#2196F3',
-      border: 'none',
-      color: 'white',
-      padding: '8px 16px',
-      textAlign: 'center',
-      textDecoration: 'none',
-      display: 'inline-block',
-      fontSize: '14px',
-      marginRight: '10px',
-      marginTop: '10px',
-      cursor: 'pointer',
-      borderRadius: '5px',
-      boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-      transition: 'background-color 0.3s ease',
-    }}
-  >
-    {isEditorVisible ? 'הסתר קוד' : 'הצג קוד'}
-  </button>
+        {/* Primary Controls & Dropdown Menu */}
+        <div className="builder-controls-wrapper" style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setShowAIGeneratorModal(true)} 
+            className="builder-btn"
+            style={{ background: '#f5f3ff', border: '1px solid #c7d2fe', color: '#4338ca', fontWeight: '800' }}
+          >
+            ✨ מחולל AI לבלוקים
+          </button>
 
+          <button onClick={toggleEditorVisibility} className="builder-btn">
+            👁️ {isEditorVisible ? 'הסתר קוד' : 'הצג קוד בלייב'}
+          </button>
+          
+          <button onClick={handleUpload} className="builder-btn builder-btn-hero" disabled={isProcessing}>
+            🚀 צרוב ל-ESP32 / לוח
+          </button>
 
+          {/* Toggle Settings Dropdown Button */}
+          <button 
+            onClick={() => setShowSettingsMenu(!showSettingsMenu)} 
+            className="builder-btn"
+            style={{ background: showSettingsMenu ? '#e2e8f0' : '#ffffff' }}
+          >
+            ⚙️ הגדרות וקובץ {showSettingsMenu ? '▲' : '▼'}
+          </button>
 
+          {/* Floating Settings Dropdown Menu */}
+          {showSettingsMenu && (
+            <div className="builder-settings-dropdown">
+              <div className="settings-dropdown-header">
+                <strong>⚙️ הגדרות קובץ וחומרה</strong>
+                <button onClick={() => setShowSettingsMenu(false)} className="dropdown-close-btn">✕</button>
+              </div>
 
-  <button
-    onClick={saveWorkspaceButtonClick}
-    style={{
-      backgroundColor: '#007BFF',
-      border: 'none',
-      color: 'white',
-      padding: '8px 16px',
-      textAlign: 'center',
-      textDecoration: 'none',
-      display: 'inline-block',
-       marginTop: '10px',
-      fontSize: '14px',
-      cursor: 'pointer',
-      borderRadius: '5px',
-      boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-      transition: 'background-color 0.3s ease',
-    }}
-  >
-    שמור Workspace
-  </button>
-</div>
-{/* תנאי להצגה/הסתרה של עורך הקוד */}
-    {isEditorVisible && (
-      <MonacoEditor
-        key={generatedCode}
-        width="100%"
-        height="6000px"
-        language="arduino"
-        theme="vs-light"
-        value={generatedCode}
-        options={{
-          selectOnLineNumbers: true,
-          readOnly: false,
-          wordWrap: 'on',
-          wrappingIndent: 'deepIndent'
+              <div className="settings-dropdown-section">
+                <label className="dropdown-label">שם קובץ:</label>
+                <input 
+                  type="text" 
+                  value={filename} 
+                  onChange={(e) => setFilename(e.target.value)} 
+                  className="builder-input-field"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="settings-dropdown-section">
+                <label className="dropdown-label">בחר לוח:</label>
+                <select 
+                  value={selectedBoard} 
+                  onChange={(e) => setSelectedBoard(e.target.value)}
+                  className="builder-select-box"
+                  style={{ width: '100%' }}
+                >
+                  <option value="esp32">🔥 ESP32 Dev Module</option>
+                  <option value="esp32s3">⚡ ESP32-S3</option>
+                  <option value="uno">🤖 Arduino Uno</option>
+                  <option value="nano">🔹 Arduino Nano</option>
+                </select>
+              </div>
+
+              <div className="settings-dropdown-section">
+                <label className="dropdown-label">יציאת COM (Port):</label>
+                <select 
+                  value={comPort} 
+                  onChange={(e) => setComPort(e.target.value)} 
+                  className="builder-select-box"
+                  style={{ width: '100%', marginBottom: '6px', padding: '6px 10px' }}
+                >
+                  {Array.from({ length: 20 }, (_, i) => `COM${i + 1}`).map(port => (
+                    <option key={port} value={port}>{port}</option>
+                  ))}
+                </select>
+                <ComPortStatusBadge currentPort={comPort} onSelectPort={setComPort} board={selectedBoard} />
+              </div>
+
+              <div style={{ height: '1px', background: '#e2e8f0', margin: '12px 0' }}></div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button onClick={() => { saveWorkspaceButtonClick(); setShowSettingsMenu(false); }} className="builder-btn" style={{ justifyContent: 'center' }}>
+                  💾 שמור Workspace
+                </button>
+                <button onClick={() => { handleDownload(); setShowSettingsMenu(false); }} className="builder-btn" style={{ justifyContent: 'center' }}>
+                  📥 הורד קוד (.ino)
+                </button>
+                <button onClick={() => { handleCompile(); setShowSettingsMenu(false); }} className="builder-btn builder-btn-primary" style={{ justifyContent: 'center' }} disabled={isProcessing}>
+                  ⚙️ קמפל קוד
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* אזור העבודה הראשי - Split-Screen */}
+      <div className="builder-workspace-container">
+        {/* אזור Blockly הראשי */}
+        <div className="builder-blockly-wrapper">
+          <div
+            ref={blocklyDiv}
+            id="blocklyDiv"
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+            }}
+          ></div>
+        </div>
+
+        {/* פאנל קוד צדי בלייב (Live Split View Panel) */}
+        {isEditorVisible && (
+          <div className="builder-side-code-panel">
+            <div className="code-panel-header">
+              <span className="code-panel-title">💻 קוד C++ / Arduino בלייב</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(baseCode + "\n" + generatedCode);
+                    alert('הקוד הועתק ללוח!');
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                >
+                  📋 העתק קוד
+                </button>
+                <button 
+                  onClick={toggleEditorVisibility} 
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 'bold' }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="code-panel-body">
+              <MonacoEditor
+                key={generatedCode}
+                width="100%"
+                height="100%"
+                language="cpp"
+                theme="vs-light"
+                value={baseCode + "\n" + generatedCode}
+                options={{
+                  selectOnLineNumbers: true,
+                  readOnly: false,
+                  wordWrap: 'on',
+                  wrappingIndent: 'deepIndent',
+                  fontSize: 13,
+                  minimap: { enabled: false }
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* חלון הצגת תוצאות קומפילציה / צריבה */}
+      {compileResult && (
+        <div className="builder-console-drawer">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <strong style={{ color: '#0f172a' }}>תוצאות קומפילציה / צריבה:</strong>
+            <button onClick={() => setCompileResult('')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold' }}>✕</button>
+          </div>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', color: '#334155' }}>{compileResult}</pre>
+        </div>
+      )}
+
+      {/* מודל מחולל בלוקים ב-AI מובנה בסביבת הפיתוח */}
+      <AIBlockGeneratorModal 
+        isOpen={showAIGeneratorModal}
+        onClose={() => setShowAIGeneratorModal(false)}
+        onBlockCreated={() => {
+          registerAllBlocks();
         }}
-        style={{ zIndex: 1 }}
       />
-    )}
 
-
-{/* <button
-    onClick={toggleNewBlockForm}
-    style={{
-        backgroundColor: '#673ab7',
-        color: 'white',
-        padding: '8px 16px',
-        textAlign: 'center',
-        textDecoration: 'none',
-        display: 'inline-block',
-        fontSize: '14px',
-        cursor: 'pointer',
-        borderRadius: '5px',
-        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.3)',
-        transition: 'background-color 0.3s ease',
-        marginBottom: '10px',
-    }}
->
-    {showNewBlockForm ? 'הסתר יצירת בלוק חדש' : 'הצג יצירת בלוק חדש'}
-</button>
-
-{showNewBlockForm && (
-    <div style={{
-        width: '100%',
-        padding: '20px',
-        backgroundColor: '#f0f0f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        marginBottom: '20px',
-    }}>
-       <div style={{
-    width: '100%',
-    padding: '20px',
-    backgroundColor: '#f0f0f0',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-    marginBottom: '20px',
-}}>
-    <h3>יצירת בלוק חדש</h3>
-    <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', marginBottom: '5px' }}>שם הבלוק:</label>
-        <input
-            type="text"
-            value={newBlockName}
-            onChange={handleNewBlockNameChange}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-        />
+      {/* 🚀 FLASHING & COMPILATION PROCESS MODAL */}
+      <FlashingModal 
+        isOpen={showFlashingModal}
+        onClose={() => setShowFlashingModal(false)}
+        mode={flashingMode}
+        board={selectedBoard}
+        comPort={comPort}
+        filename={filename}
+        code={generatedCode}
+      />
     </div>
-      <div style={{ marginBottom: '10px' }}>
-<label style={{ display: 'block', marginBottom: '5px' }}>שם הקטגוריה:</label>
-<input
-    type="text"
-    value={newCategoryName}
-    onChange={handleNewCategoryNameChange}
-    style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-    />
-</div>
-    <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', marginBottom: '5px' }}>צבע הבלוק:</label>
-        <input
-            type="color"
-            value={newBlockColor}
-            onChange={handleNewBlockColorChange}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-        />
-    </div>
-    <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', marginBottom: '5px' }}>Tooltip:</label>
-        <input
-            type="text"
-            value={newBlockTooltip}
-            onChange={handleNewBlockTooltipChange}
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-        />
-    </div>
-    <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', marginBottom: '5px' }}>קוד:</label>
-        <textarea
-            value={newBlockCode}
-            onChange={handleNewBlockCodeChange}
-            style={{ width: '100%', height: '100px', padding: '8px', boxSizing: 'border-box', resize: 'vertical' }}
-        />
-    </div>
-    <button
-        onClick = {createNewBlock}
-        style={{
-           
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            padding: '10px 20px',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-        }}
-    >
-        צור בלוק
-    </button>
-</div> */}
-    {/* </div>
-)} */}
-
-
-    
-
-</div>
   );
 }
 
-export default Builder;
+export default Builder;

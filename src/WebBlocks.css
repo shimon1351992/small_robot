@@ -1,0 +1,25 @@
+.blocklyPage {
+  display: flex;
+  height: 100vh;
+}
+
+#blocklyArea {
+  flex: 1; /* תופס את רוב השטח */
+  position: relative;
+}
+
+#blocklyDiv {
+  position: absolute;
+}
+
+.uiPreview {
+  width: 50%; /* חצי מהמסך */
+  padding: 20px;
+  border-left: 1px solid #ccc;
+}
+
+.uiPreview iframe {
+  border: none;
+  width: 100%;
+  height: 100%;
+}

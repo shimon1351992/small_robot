@@ -3,7 +3,7 @@
   "contents": [
     {
       "kind": "category",
-      "name": "בקרה",
+      "name": "🎮 בקרה",
       "contents": [
         { "kind": "block", "type": "controls_if" },
         { "kind": "block", "type": "controls_if_else" },
@@ -15,7 +15,7 @@
     },
     {
       "kind": "category",
-      "name": "לולאות",
+      "name": "🔁 לולאות",
       "contents": [
         { "kind": "block", "type": "controls_repeat_ext" },
         { "kind": "block", "type": "infinite_loop" }
@@ -23,7 +23,7 @@
     },
     {
       "kind": "category",
-      "name": "פעולות מתמטיות",
+      "name": "🔢 מתמטיקה",
       "contents": [
         { "kind": "block", "type": "math_number" },
         { "kind": "block", "type": "math_arithmetic" }
@@ -31,7 +31,7 @@
     },
     {
       "kind": "category",
-      "name": "טקסט",
+      "name": "📝 טקסט",
       "contents": [
         { "kind": "block", "type": "text" },
         { "kind": "block", "type": "text_print" },
@@ -41,7 +41,7 @@
     },
     {
       "kind": "category",
-      "name": "בית חכם",
+      "name": "🏠 בית חכם",
       "contents": [
         { "kind": "block", "type": "motion_sensor_function" },
         { "kind": "block", "type": "light_sensor_function" },
@@ -88,15 +88,19 @@
     },
      {
       "kind": "category",
-      "name": "רובוט",
+      "name": "🤖 רובוט",
       "contents": [
+        { "kind": "block", "type": "robot_block_globals" },
+        { "kind": "block", "type": "robot_block_setup" },
+        { "kind": "block", "type": "robot_block_loop" },
+        { "kind": "block", "type": "robot_block_bottom" },
         { "kind": "block", "type": "robot_apply_current_direction" },
         { "kind": "block", "type": "robot_infinite_loop" } 
       ]
     },
     {
       "kind": "category",
-      "name": "ESP32",
+      "name": "⚡ ESP32",
       "contents": [
         { "kind": "block", "type": "esp32_digital_write" },
         { "kind": "block", "type": "esp32_analog_read" },
@@ -108,7 +112,7 @@
     },
     {
       "kind": "category",
-      "name": "משתנים",
+      "name": "📦 משתנים",
       "contents": [
         { "kind": "block", "type": "variables_create" },
         { "kind": "block", "type": "set_param" },
@@ -117,14 +121,14 @@
     },
     {
       "kind": "category",
-      "name": "ארדואינו",
+      "name": "📟 ארדואינו",
       "contents": [
         { "kind": "block", "type": "infinite_loop" }
       ]
     },
     {
       "kind": "category",
-      "name": "פונקציות",
+      "name": "🧩 פונקציות",
       "contents": [
         { "kind": "block", "type": "function_definition_noreturn" },
         { "kind": "block", "type": "function_call" },
@@ -140,7 +144,7 @@
     },
     {
       "kind": "category",
-      "name": "Firebase",
+      "name": "🔥 Firebase",
       "contents": [
         { "kind": "block", "type": "datalink_input" }
       ]
