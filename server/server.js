@@ -767,17 +767,67 @@ app.post('/upload', (req, res) => {
   });
 });
 
-// 4. POST Send Code to Email Endpoint
-app.post('/send-code-email', (req, res) => {
-  const { email = 'shimon1351992@gmail.com', code, filename = 'superbot_car.ino', notes } = req.body;
-  console.log(`[Email] Request to send code to ${email} for file: ${filename}`);
+// 4. POST Send Code to Email Endpoint with REAL .ino File Attachment
+let nodemailer = null;
+let gmailTransporter = null;
 
-  // Returns success response with instructions/payload confirmation
-  res.json({ 
-    success: true, 
-    message: `הקוד נשלח בהצלחה למייל ${email}`,
-    recipient: email 
+try {
+  nodemailer = require('nodemailer');
+  gmailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'shimon1351992@gmail.com',
+      pass: 'izyr rjag onwe uqwl'
+    }
   });
+} catch (e) {
+  console.log('ℹ️ Nodemailer is not installed locally. Local emails will use cloud fallback.');
+}
+
+app.post('/send-code-email', async (req, res) => {
+  const { studentName = 'תלמיד', email = 'shimon1351992@gmail.com', code = '', filename = 'superbot_car.ino', notes = '' } = req.body;
+  const inoFilename = filename.endsWith('.ino') ? filename : `${filename}.ino`;
+
+  console.log(`[Email] Sending .ino attachment to: ${email} (Student: ${studentName})`);
+
+  try {
+    const mailOptions = {
+      from: '"SmartStart Robot 🤖" <shimon1351992@gmail.com>',
+      to: email,
+      subject: `📎 קובץ פרויקט ארדואינו: ${inoFilename} (מאת ${studentName})`,
+      text: `שלום,\n\nמצורף קובץ הפרויקט (${inoFilename}) שנוצר על ידי התלמיד: ${studentName}.\n\n📁 הקובץ מצורף למייל זה להורדה ישירה ולפתיחה ב-Arduino IDE.\n\nהערות: ${notes || 'ללא'}\n\nנשלח מ-SmartStartWeb 🚀`,
+      html: `
+        <div dir="rtl" style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 24px; border-radius: 12px; color: #1e293b;">
+          <h2 style="color: #0284c7; margin-top: 0;">🤖 SmartStart Robot - קובץ פרויקט ארדואינו</h2>
+          <p>שלום,</p>
+          <p>מצורף קובץ הפרויקט <b>${inoFilename}</b> שנוצר על ידי התלמיד <b>${studentName}</b>.</p>
+          <div style="background: #ffffff; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; margin: 16px 0;">
+            <p style="margin: 4px 0;"><b>📄 שם הקובץ:</b> ${inoFilename}</p>
+            <p style="margin: 4px 0;"><b>👤 שם התלמיד:</b> ${studentName}</p>
+            <p style="margin: 4px 0;"><b>📅 תאריך:</b> ${new Date().toLocaleDateString('he-IL')}</p>
+            ${notes ? `<p style="margin: 4px 0;"><b>📝 הערות:</b> ${notes}</p>` : ''}
+          </div>
+          <p>📎 <b>הקובץ מצורף למייל זה (בתחתית ההודעה) וניתן להורדה ישירה ולפתיחה ב-Arduino IDE.</b></p>
+          <hr style="border: none; border-top: 1px solid #cbd5e1; margin: 20px 0;" />
+          <small style="color: #64748b;">נשלח אוטומטית מ-SmartStart Robot Web</small>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: inoFilename,
+          content: code,
+          contentType: 'text/plain'
+        }
+      ]
+    };
+
+    const info = await gmailTransporter.sendMail(mailOptions);
+    console.log(`[Email] Mail sent successfully! ID: ${info.messageId}`);
+    res.json({ success: true, message: `הקובץ ${inoFilename} נשלח בהצלחה כקובץ מצורף למייל ${email}!` });
+  } catch (err) {
+    console.error('[Email] Failed to send email via SMTP:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Serve static React build files if present
