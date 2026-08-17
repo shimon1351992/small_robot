@@ -845,7 +845,15 @@ function RobotSmall() {
             <button onClick={handleDownloadCode} className="builder-btn">
               📄 הורד קוד (.ino)
             </button>
-            <button onClick={() => setShowSendEmailModal(true)} className="builder-btn" style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd' }}>
+            <button 
+              type="button"
+              onClick={() => {
+                handleSaveCode();
+                setShowSendEmailModal(true);
+              }} 
+              className="builder-btn" 
+              style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd', cursor: 'pointer' }}
+            >
               📧 שלח קוד למייל
             </button>
             <button onClick={() => setIsEditorVisible(!isEditorVisible)} className="builder-btn" style={{ background: '#f8fafc' }}>

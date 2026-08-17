@@ -84,16 +84,20 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
 
   return (
     <div 
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
-        right: 0,
-        bottom: 0,
+        width: '100vw',
+        height: '100vh',
         backgroundColor: 'rgba(15, 23, 42, 0.85)',
-        backdropFilter: 'blur(5px)',
-        zIndex: 9999,
+        backdropFilter: 'blur(6px)',
+        zIndex: 999999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
