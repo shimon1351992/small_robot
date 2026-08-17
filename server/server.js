@@ -780,6 +780,19 @@ app.post('/send-code-email', (req, res) => {
   });
 });
 
+// Serve static React build files if present
+const buildDir = path.join(__dirname, '..', 'build');
+if (fs.existsSync(buildDir)) {
+  app.use(express.static(buildDir));
+  app.get('*', (req, res, next) => {
+    // Don't intercept API endpoints
+    if (req.path.startsWith('/compile') || req.path.startsWith('/upload') || req.path.startsWith('/ports') || req.path.startsWith('/send-code-email')) {
+      return next();
+    }
+    res.sendFile(path.join(buildDir, 'index.html'));
+  });
+}
+
 // Multi-port listening fallback (process.env.PORT -> 3002 -> 3005 -> 3001 -> 5005)
 const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : null;
 const PORTS_TO_TRY = envPort ? [envPort, 3002, 3005, 3001, 5005] : [3002, 3005, 3001, 5005];

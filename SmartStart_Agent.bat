@@ -1,13 +1,13 @@
 @echo off
-title SmartStart Robot Local Agent (Port 3001)
+title SmartStart Robot Local Agent
 color 0A
 cls
 echo =====================================================================
-echo           SmartStart Robot - Local Flashing Agent (Port 3001)
+echo           SmartStart Robot - Local Flashing Agent
 echo =====================================================================
 echo.
 echo  Local Flashing Server is RUNNING!
-echo  Open your browser, connect your ESP32 via USB, and click FLASH!
+echo  Open your browser at: http://localhost:3002
 echo.
 echo =====================================================================
 echo.
