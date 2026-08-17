@@ -689,9 +689,9 @@ app.post('/compile', (req, res) => {
 
   prepareProjectFiles(projectPath, runId, code, headerCode, cppCode);
 
-  console.log(`[Compile] Building FQBN: ${fqbn} at ${projectPath} with cacheDir: ${cacheDir}`);
+  console.log(`[Compile] Building FQBN: ${fqbn} at ${projectPath} with cacheDir: ${cacheDir} (Single Thread - RAM optimized)`);
 
-  const cmd = `${arduinoCliPath} compile --fqbn "${fqbn}" --build-cache-path "${cacheDir}" --output-dir "${buildOutDir}" "${projectPath}"`;
+  const cmd = `${arduinoCliPath} compile --jobs 1 --fqbn "${fqbn}" --build-cache-path "${cacheDir}" --output-dir "${buildOutDir}" "${projectPath}"`;
   exec(cmd, { maxBuffer: 1024 * 1024 * 20, timeout: 300000 }, (err, stdout, stderr) => {
     if (err) {
       res.json({ success: false, output: stderr || stdout || err.message || 'שגיאת קומפילציה' });
@@ -744,7 +744,7 @@ app.post('/upload', (req, res) => {
 
   console.log(`[Upload] Compiling & Flashing FQBN: ${fqbn} on Port: ${port}`);
 
-  const fullUploadCmd = `${arduinoCliPath} compile --upload -p ${port} --fqbn "${fqbn}" "${projectPath}"`;
+  const fullUploadCmd = `${arduinoCliPath} compile --jobs 1 --upload -p ${port} --fqbn "${fqbn}" "${projectPath}"`;
   exec(fullUploadCmd, { maxBuffer: 1024 * 1024 * 20, timeout: 300000 }, (uErr, uStdout, uStderr) => {
     const codeHeader = `📄 === הקוד המדויק שנצרב ל-ESP32 (superbot_car.ino) ===\n${code}\n=======================================================\n\n`;
     if (uErr) {
