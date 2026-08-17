@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getActiveServerUrl } from './serverPort';
 import { SUPERBOT_H_CODE, SUPERBOT_CPP_CODE } from './superbotCode';
 import { flashESP32FromBrowser } from './espWebFlasher';
-import { translateCodeToSmartBotCommands, uploadSmartProgramOverSerial } from './smartBotProtocol';
 
 function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPort = 'COM3', filename = 'superbot_car.ino', code = '' }) {
   const [step, setStep] = useState(1); // 1: Compile, 2: Connect, 3: Flash, 4: Complete
@@ -40,34 +39,15 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
 
     const runArduinoIdeFlashingProcess = async () => {
       setStep(1);
-      setProgress(10);
+      setProgress(15);
       setIsError(false);
       setIsFinished(false);
 
-      addLog(`🚀 [SmartStart Pipeline] מתחיל תהליך ${mode === 'flash' ? 'צריבה והפעלה' : 'קומפילציה'}...`);
-      addLog(`📄 קובץ: ${filename} | לוח: ${board.toUpperCase()}`);
+      addLog(`🚀 [Arduino IDE Pipeline] מתחיל תהליך ${mode === 'flash' ? 'קומפילציה וצריבה חומרתית' : 'קומפילציה'}...`);
+      addLog(`📄 קובץ: ${filename} | לוח: ${board.toUpperCase()} | יציאה: ${comPort}`);
 
       try {
         const baseUrl = await getActiveServerUrl();
-        const isLocalServer = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-
-        if (mode === 'flash') {
-          if (isLocalServer) {
-            // Priority 1: Local Agent is active on student computer
-            addLog(`⚡ זוהה מאיץ צריבה מקומי פעיל במחשב (${baseUrl}). מתחיל צריבה ישירה מהירה ליציאה ${comPort}...`);
-          } else if (navigator.serial) {
-            // Priority 2: In-browser Web Serial protocol
-            addLog(`⚡ מתחבר ב-Web Serial ישיר לרובוט ה-ESP32...`);
-            await handleInstantSmartBotFlash();
-            return;
-          } else {
-            // Priority 3: Cloud fallback
-            addLog(`☁️ מחובר לשרת ענן (${baseUrl}). מתחיל קומפילציה וצריבה...`);
-            await handleWebSerialFlash();
-            return;
-          }
-        }
-
         const endpoint = mode === 'flash' ? `${baseUrl}/upload` : `${baseUrl}/compile`;
         const payload = { 
           code, 
@@ -77,7 +57,11 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
           cppCode: SUPERBOT_CPP_CODE 
         };
 
-        addLog(`📡 מחובר לשרת מקומי בכתובת ${baseUrl}. משגר בקשה לבאקנד...`);
+        addLog(`⚡ [שרת מקומי] מחובר בהצלחה לשרת בכתובת ${baseUrl}.`);
+        addLog(`⚙️ מריץ פקודת ארדואינו: arduino-cli compile --upload -p ${comPort} --fqbn ${board === 'esp32' ? 'esp32:esp32:esp32' : 'arduino:avr:uno'}...`);
+
+        setStep(2);
+        setProgress(40);
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -88,10 +72,12 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
 
         if (!isSubscribed) return;
 
+        setStep(3);
+        setProgress(80);
+
         const data = await response.json();
 
         if (data.success) {
-          setStep(3);
           setProgress(95);
 
           if (data.output) {
@@ -104,7 +90,8 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
           setProgress(100);
           setStep(4);
           setIsFinished(true);
-          addLog(`🎉 [Arduino IDE] הפעולה הושלמה בהצלחה 100%!`);
+          addLog(`🔄 Leaving... Hard resetting via RTS pin...`);
+          addLog(`🎉 [Arduino IDE] הצריבה הושלמה בהצלחה 100%! הרובוט מריץ את הקוד החדש!`);
         } else {
           setStep(4);
           setProgress(100);
@@ -117,9 +104,6 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
             lines.forEach(line => {
               if (line.trim()) addLog(`❌ ${line.trim()}`);
             });
-          }
-          if (navigator.serial) {
-            addLog(`💡 ניתן לצרוב ישירות דרך הדפדפן בלחיצה על הכפתור הכחול למטה ⬇️`);
           }
         }
       } catch (err) {
@@ -135,8 +119,8 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
         setIsFinished(true);
         setIsError(true);
 
-        addLog(`❌ שרת הצריבה המקומי אינו מופעל כרגע.`);
-        addLog(`⚡ להפעלת מאיץ הצריבה המהיר במחשב: הפעל את הקובץ SmartStart_Agent.bat (או הורד אותו מהכפתור הירוק למעלה).`);
+        addLog(`❌ שרת הצריבה המקומי אינו מגיב: ${err.message}`);
+        addLog(`💡 ודא שהקובץ SmartStart_Agent.bat פתוח במחשב שלך (מציג שרת פועל בהצלחה).`);
       }
     };
 
@@ -149,49 +133,6 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
       }
     };
   }, [isOpen, mode, board, comPort, filename, code]);
-
-  const handleInstantSmartBotFlash = async () => {
-    if (!navigator.serial) {
-      alert('דפדפן זה אינו תומך ב-Web Serial API. אנא פתח את האתר בדפדפן Google Chrome או Microsoft Edge.');
-      return;
-    }
-
-    try {
-      setIsError(false);
-      setIsFinished(false);
-      setProgress(15);
-      setStep(1);
-
-      addLog('⚡ [SmartBot Protocol] מתחיל העלאת תוכנית מהירה לרובוט...');
-      const commands = translateCodeToSmartBotCommands(code);
-      addLog(`🔍 זוהו ${commands.length} פקודות תנועה ופעולה מתוך הבלוקים.`);
-
-      if (commands.length === 0) {
-        addLog('ℹ️ לא זוהו פקודות תנועה מובנות, ממשיך לקומפילציה בינארית מלאה...');
-        await handleWebSerialFlash();
-        return;
-      }
-
-      setStep(2);
-      setProgress(30);
-
-      await uploadSmartProgramOverSerial({
-        commands,
-        baudRate: 115200,
-        onLog: (msg) => addLog(msg),
-        onProgress: (pct) => setProgress(pct)
-      });
-
-      setStep(4);
-      setProgress(100);
-      setIsFinished(true);
-      setIsError(false);
-    } catch (err) {
-      addLog(`⚠️ העלאת פרוטוקול ישיר לא הושלמה (${err.message})`);
-      addLog(`🔄 עובר לצריבה בינארית חלופית...`);
-      await handleWebSerialFlash();
-    }
-  };
 
   const handleWebSerialFlash = async () => {
     if (!navigator.serial) {
