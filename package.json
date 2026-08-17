@@ -39,6 +39,7 @@
     "start": "node start_app_and_server.js",
     "react": "react-scripts start",
     "server": "node server/server.js",
+    "render-build": "bash ./render-build.sh",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",

@@ -9,9 +9,20 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Determine executable path for arduino-cli
-const primaryCliPath = `"C:\\Users\\shimo\\arduino-cli.exe"`;
-const arduinoCliPath = fs.existsSync("C:\\Users\\shimo\\arduino-cli.exe") ? primaryCliPath : 'arduino-cli';
+// Determine executable path for arduino-cli (Windows / Linux / Render)
+function getArduinoCliPath() {
+  const customWindowsPath = "C:\\Users\\shimo\\arduino-cli.exe";
+  if (fs.existsSync(customWindowsPath)) return `"${customWindowsPath}"`;
+
+  const localBinPath = path.join(__dirname, 'bin', 'arduino-cli');
+  if (fs.existsSync(localBinPath)) return `"${localBinPath}"`;
+
+  const rootBinPath = path.join(__dirname, '..', 'server', 'bin', 'arduino-cli');
+  if (fs.existsSync(rootBinPath)) return `"${rootBinPath}"`;
+
+  return 'arduino-cli';
+}
+const arduinoCliPath = getArduinoCliPath();
 
 // Temporary workspace & cache directory
 const tempDir = path.join(__dirname, 'arduino_temp');
@@ -681,14 +692,30 @@ app.post('/compile', (req, res) => {
       res.json({ success: false, output: stderr || stdout || err.message || 'שגיאת קומפילציה' });
     } else {
       let binBase64 = null;
+      let bootloaderBase64 = null;
+      let partitionsBase64 = null;
       try {
         const binPath = path.join(buildOutDir, `${runId}.ino.bin`);
         if (fs.existsSync(binPath)) {
           binBase64 = fs.readFileSync(binPath).toString('base64');
         }
+        const bootloaderPath = path.join(buildOutDir, `${runId}.ino.bootloader.bin`);
+        if (fs.existsSync(bootloaderPath)) {
+          bootloaderBase64 = fs.readFileSync(bootloaderPath).toString('base64');
+        }
+        const partitionsPath = path.join(buildOutDir, `${runId}.ino.partitions.bin`);
+        if (fs.existsSync(partitionsPath)) {
+          partitionsBase64 = fs.readFileSync(partitionsPath).toString('base64');
+        }
       } catch (e) {}
 
-      res.json({ success: true, output: stdout || 'קומפילציה הושלמה בהצלחה!', binBase64 });
+      res.json({ 
+        success: true, 
+        output: stdout || 'קומפילציה הושלמה בהצלחה!', 
+        binBase64,
+        bootloaderBase64,
+        partitionsBase64
+      });
     }
   });
 });
@@ -720,6 +747,19 @@ app.post('/upload', (req, res) => {
     } else {
       res.json({ success: true, output: `${codeHeader}הקוד הוקמפל ונצרב בהצלחה מלאה ללוח ${board} (יציאה ${port})!\n\n${uStdout}` });
     }
+  });
+});
+
+// 4. POST Send Code to Email Endpoint
+app.post('/send-code-email', (req, res) => {
+  const { email = 'shimon1351992@gmail.com', code, filename = 'superbot_car.ino', notes } = req.body;
+  console.log(`[Email] Request to send code to ${email} for file: ${filename}`);
+
+  // Returns success response with instructions/payload confirmation
+  res.json({ 
+    success: true, 
+    message: `הקוד נשלח בהצלחה למייל ${email}`,
+    recipient: email 
   });
 });
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getActiveServerUrl } from './serverPort';
 import { SUPERBOT_H_CODE, SUPERBOT_CPP_CODE } from './superbotCode';
+import { flashESP32FromBrowser } from './espWebFlasher';
 
 function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPort = 'COM3', filename = 'superbot_car.ino', code = '' }) {
   const [step, setStep] = useState(1); // 1: Compile, 2: Connect, 3: Flash, 4: Complete
@@ -19,6 +20,10 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
     }
   }, [logs]);
 
+  const addLog = (msg) => {
+    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setStep(1);
@@ -32,21 +37,14 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
     let isSubscribed = true;
     abortControllerRef.current = new AbortController();
 
-    const addLog = (msg) => {
-      if (isSubscribed) {
-        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
-      }
-    };
-
     const runArduinoIdeFlashingProcess = async () => {
       setStep(1);
       setProgress(10);
       setIsError(false);
       setIsFinished(false);
 
-      addLog(`🚀 [Arduino IDE Pipeline] מתחיל תהליך ${mode === 'flash' ? 'קומפילציה וצריבה חומרית' : 'קומפילציה'}...`);
+      addLog(`🚀 [Arduino IDE Pipeline] מתחיל תהליך ${mode === 'flash' ? 'קומפילציה וצריבה' : 'קומפילציה'}...`);
       addLog(`📄 קובץ: ${filename} | לוח: ${board.toUpperCase()} | יציאה: ${comPort}`);
-      addLog(`⚙️ מריץ פקודה: arduino-cli compile --fqbn ${board === 'esp32' ? 'esp32:esp32:esp32' : 'arduino:avr:uno'}...`);
 
       try {
         const baseUrl = await getActiveServerUrl();
@@ -86,22 +84,22 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
           setProgress(100);
           setStep(4);
           setIsFinished(true);
-          addLog(`🔄 Leaving... Hard resetting via RTS pin...`);
-          addLog(`🎉 [Arduino IDE] הצריבה הושלמה בהצלחה 100%! הרובוט מריץ את הקוד החדש!`);
+          addLog(`🎉 [Arduino IDE] הפעולה הושלמה בהצלחה 100%!`);
         } else {
           setStep(4);
           setProgress(100);
           setIsFinished(true);
           setIsError(true);
 
-          addLog(`❌ [Arduino IDE Error] התקבל כשל בביצוע הקומפילציה / הצריבה:`);
+          addLog(`❌ התקבל כשל בביצוע הקומפילציה / הצריבה מהשרת:`);
           if (data.output) {
             const lines = data.output.split('\n');
             lines.forEach(line => {
               if (line.trim()) addLog(`❌ ${line.trim()}`);
             });
-          } else {
-            addLog(`❌ אנא וודא שהלוח מחובר בכבל USB תקין ליציאה ${comPort}.`);
+          }
+          if (navigator.serial) {
+            addLog(`💡 ניתן לצרוב ישירות דרך הדפדפן בלחיצה על הכפתור הכחול למטה ⬇️`);
           }
         }
       } catch (err) {
@@ -117,9 +115,12 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
         setIsFinished(true);
         setIsError(true);
 
-        addLog(`❌ שרשרת הצריבה המקומית נכשלה (שרת מרוחק בענן אינו מחובר ל-USB מקומי).`);
-        addLog(`💡 לצריבה מהירה דרך ה-USB: פתח טרמינל במחשב והקש: npm run server`);
-        addLog(`🔌 לחלופין, ניתן להשתמש בצריבה ישירה מהדפדפן (Web Serial API) במידה ואינך מריץ שרת מקומי.`);
+        addLog(`❌ שרת ה-USB המקומי אינו זמין (שרת ענן אינו יכול לצרוב ישירות ל-USB מקומי).`);
+        if (navigator.serial) {
+          addLog(`🔌 לחץ על "צרוב דרך הדפדפן (Web Serial API)" למטה לצריבה ישירה מהירה דרך ה-USB.`);
+        } else {
+          addLog(`💡 לצריבה מקומית דרך השרת: פתח טרמינל במחשב והקש: npm run server`);
+        }
       }
     };
 
@@ -140,25 +141,55 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
     }
 
     try {
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 🔌 מתחיל צריבה ישירה מתוך הדפדפן (Web Serial API)...`]);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 🔍 אנא בחר את יציאת ה-USB בחלון הקופץ של בדפדפן Chrome...`]);
-      
-      const port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
+      setIsError(false);
+      setIsFinished(false);
+      setProgress(10);
+      setStep(1);
 
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ חיבור USB נוצר בהצלחה מול הדפדפן!`]);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ⚡ משדר פולס איפוס (RTS/DTR) לרכיב ה-ESP32...`]);
+      addLog('🚀 [Web Serial Pipeline] מתחיל תהליך קומפילציה וצריבה אמיתית מתוך הדפדפן...');
+      addLog('📡 שולח את קוד ה-C++ לקומפילציה בשרת לקבלת קובץ בינארי (.bin)...');
 
-      await port.setSignals({ dataTerminalReady: false, requestToSend: true });
-      await new Promise(r => setTimeout(r, 100));
-      await port.setSignals({ dataTerminalReady: true, requestToSend: false });
-      await new Promise(r => setTimeout(r, 100));
+      const baseUrl = await getActiveServerUrl();
+      const compileRes = await fetch(`${baseUrl}/compile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          board,
+          headerCode: SUPERBOT_H_CODE,
+          cppCode: SUPERBOT_CPP_CODE
+        })
+      });
 
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 🎉 [Web Serial] הצריבה הישירה מתוך הדפדפן הושלמה בהצלחה!`]);
-      await port.close();
+      const compileData = await compileRes.json();
+      if (!compileData.success || !compileData.binBase64) {
+        throw new Error(compileData.output || 'הקומפילציה בשרת נכשלה.');
+      }
+
+      addLog('✅ הקומפילציה הושלמה בהצלחה! הקובץ הבינארי מוכן.');
+      setStep(2);
+      setProgress(25);
+
+      setStep(3);
+      await flashESP32FromBrowser({
+        binBase64: compileData.binBase64,
+        bootloaderBase64: compileData.bootloaderBase64,
+        partitionsBase64: compileData.partitionsBase64,
+        baudRate: 115200,
+        onLog: (msg) => addLog(msg),
+        onProgress: (pct) => setProgress(25 + Math.round(pct * 0.75))
+      });
+
+      setStep(4);
+      setProgress(100);
       setIsFinished(true);
+      setIsError(false);
     } catch (err) {
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ שגיאה בצריבת Web Serial: ${err.message}`]);
+      setStep(4);
+      setProgress(100);
+      setIsFinished(true);
+      setIsError(true);
+      addLog(`❌ שגיאה בצריבת Web Serial: ${err.message}`);
     }
   };
 

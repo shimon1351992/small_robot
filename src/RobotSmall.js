@@ -7,6 +7,7 @@ import 'blockly/javascript';
 import { registerAllBlocks, getAllRegisteredBlocks, registerFallbackBlock, SYSTEM_CUSTOM_BLOCKS, getDynamicProjectCategories } from './blockRegistry';
 import AIBlockGeneratorModal from './AIBlockGeneratorModal';
 import FlashingModal from './FlashingModal';
+import SendCodeModal from './SendCodeModal';
 import ComPortStatusBadge from './ComPortStatusBadge';
 import { SUPERBOT_H_CODE, SUPERBOT_CPP_CODE, SUPERBOT_INO_FULL_CODE, mergeBlocksWithBaseTemplate } from './superbotCode';
 import { TURTLE_HERO } from './projectImages';
@@ -533,6 +534,7 @@ function RobotSmall() {
   // Save Code State & Notification
   const [isCodeSaved, setIsCodeSaved] = useState(false);
   const [saveNotification, setSaveNotification] = useState('');
+  const [showSendEmailModal, setShowSendEmailModal] = useState(false);
 
   const handleSaveCode = () => {
     if (workspace) {
@@ -833,6 +835,9 @@ function RobotSmall() {
             )}
             <button onClick={handleDownloadCode} className="builder-btn">
               📄 הורד קוד (.ino)
+            </button>
+            <button onClick={() => setShowSendEmailModal(true)} className="builder-btn" style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd' }}>
+              📧 שלח קוד למייל
             </button>
             <button onClick={() => setIsEditorVisible(!isEditorVisible)} className="builder-btn" style={{ background: '#f8fafc' }}>
               👁️ {isEditorVisible ? 'הסתר קוד' : 'הצג קוד בלייב'}
@@ -1493,6 +1498,14 @@ function RobotSmall() {
         mode={flashingMode}
         board={selectedBoard}
         comPort={comPort}
+        filename={filename}
+        code={generatedCode || SUPERBOT_INO_FULL_CODE}
+      />
+
+      {/* 📧 SEND CODE TO EMAIL MODAL */}
+      <SendCodeModal 
+        isOpen={showSendEmailModal}
+        onClose={() => setShowSendEmailModal(false)}
         filename={filename}
         code={generatedCode || SUPERBOT_INO_FULL_CODE}
       />
