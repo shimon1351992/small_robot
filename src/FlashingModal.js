@@ -48,6 +48,15 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
 
       try {
         const baseUrl = await getActiveServerUrl();
+        const isLocalServer = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+
+        if (mode === 'flash' && !isLocalServer) {
+          // Cloud Server Mode: Compile in Cloud -> Flash in Browser via Web Serial
+          addLog(`☁️ מחובר לשרת ענן (${baseUrl}). מתחיל קומפילציה בענן וצריבה ישירה דרך ה-USB בדפדפן...`);
+          await handleWebSerialFlash();
+          return;
+        }
+
         const endpoint = mode === 'flash' ? `${baseUrl}/upload` : `${baseUrl}/compile`;
         const payload = { 
           code, 
@@ -57,7 +66,7 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
           cppCode: SUPERBOT_CPP_CODE 
         };
 
-        addLog(`📡 מחובר לשרת בכתובת ${baseUrl}. משגר בקשה לבאקנד...`);
+        addLog(`📡 מחובר לשרת מקומי בכתובת ${baseUrl}. משגר בקשה לבאקנד...`);
 
         const response = await fetch(endpoint, {
           method: 'POST',
