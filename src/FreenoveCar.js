@@ -681,9 +681,9 @@ function FreenoveCar() {
               type="button"
               onClick={() => setShowSendEmailModal(true)} 
               className="builder-btn" 
-              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: '#ffffff', borderColor: '#ea580c', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(234,88,12,0.3)' }}
+              style={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', color: '#ffffff', borderColor: '#128C7E', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 10px rgba(37,211,102,0.35)' }}
             >
-              📧 שלח קוד למייל
+              💬 שלח קוד ב-WhatsApp
             </button>
             <button onClick={() => setIsEditorVisible(!isEditorVisible)} className="builder-btn" style={{ background: '#f8fafc' }}>
               👁️ {isEditorVisible ? 'הסתר קוד' : 'הצג קוד בלייב'}

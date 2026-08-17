@@ -1,73 +1,56 @@
 import React, { useState } from 'react';
-import { getActiveServerUrl } from './serverPort';
 
 function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.ino' }) {
   const [studentName, setStudentName] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
-  const [statusMsg, setStatusMsg] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
 
   if (!isOpen) return null;
 
-  const buildEmailBody = () => {
-    return `שלום,\n\nמצורף הקוד מהפרויקט של ${studentName || 'התלמיד'}:\nקובץ: ${filename}\nתאריך: ${new Date().toLocaleDateString('he-IL')}\n\n==================== קוד C++ / Arduino ====================\n${code}\n===========================================================\n\nהערות:\n${notes || 'ללא הערות נוספות'}\n\nנשלח מ-SmartStartWeb 🚀`;
+  const normalizePhoneNumber = (raw) => {
+    let clean = raw.replace(/\D/g, ''); // remove non-digits
+    if (clean.startsWith('05')) {
+      clean = '972' + clean.slice(1);
+    } else if (clean.startsWith('5')) {
+      clean = '972' + clean;
+    }
+    return clean;
   };
 
-  const handleSendEmail = async (e) => {
+  const handleSendWhatsApp = (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    const cleanEmail = email.trim();
+
     if (!studentName.trim()) {
       setStatusMsg('❌ אנא הזן את שם התלמיד.');
       return;
     }
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setStatusMsg('❌ אנא הזן כתובת מייל תקינה.');
+
+    const cleanPhone = normalizePhoneNumber(phone);
+    if (!cleanPhone || cleanPhone.length < 9) {
+      setStatusMsg('❌ אנא הזן מספר טלפון תקין (למשל: 052-1234567).');
       return;
     }
 
-    setIsLoading(true);
-    setStatusMsg('⏳ שולח את קובץ הפרויקט למייל שלך...');
-
     const inoFilename = filename.endsWith('.ino') ? filename : `${filename}.ino`;
-    const formattedMessage = `שלום,\n\nמצורף קוד הפרויקט (${inoFilename}) שנוצר על ידי התלמיד: ${studentName}.\n\n============================================================\n📄 קובץ פרויקט: ${inoFilename}\n👤 שם התלמיד: ${studentName}\n📅 תאריך: ${new Date().toLocaleDateString('he-IL')}\n📝 הערות: ${notes || 'ללא'}\n============================================================\n\n💻 קוד ה-Arduino C++ המלא (להעתקה ישירה ל-Arduino IDE):\n\n${code}\n\n============================================================\n🚀 נשלח מ-SmartStart Robot Web`;
 
-    try {
-      // 1. Direct Cloud Delivery
-      await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(cleanEmail)}`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          name: `SmartStart - ${studentName}`,
-          _email: cleanEmail,
-          _subject: `💻 קובץ פרויקט ארדואינו: ${inoFilename} (מאת ${studentName})`,
-          message: formattedMessage,
-          _captcha: 'false',
-          _template: 'table'
-        })
-      }).catch(() => {});
+    // Construct Clean WhatsApp Message
+    const message = `🤖 *SmartStart Robot - קוד פרויקט ארדואינו*\n\n` +
+      `👤 *תלמיד/ה:* ${studentName}\n` +
+      `📄 *קובץ פרויקט:* ${inoFilename}\n` +
+      `📅 *תאריך:* ${new Date().toLocaleDateString('he-IL')}\n` +
+      (notes ? `📝 *הערות:* ${notes}\n\n` : `\n`) +
+      `💻 *קוד ה-Arduino C++ של הרובוט:*\n` +
+      `\`\`\`cpp\n` +
+      `${code}\n` +
+      `\`\`\`\n\n` +
+      `🚀 *נשלח מ-SmartStart Robot Studio*`;
 
-      // 2. Server SMTP Delivery if server is reachable
-      try {
-        const baseUrl = await getActiveServerUrl();
-        await fetch(`${baseUrl}/send-code-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentName, email: cleanEmail, code, filename: inoFilename, notes }),
-          signal: AbortSignal.timeout(4000)
-        }).catch(() => {});
-      } catch (e) {}
+    const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
 
-      setStatusMsg(`🎉 קובץ הפרויקט (${inoFilename}) נשלח בהצלחה למייל: ${cleanEmail}!`);
-    } catch (err) {
-      setStatusMsg(`🎉 קובץ הפרויקט (${inoFilename}) נשלח בהצלחה למייל: ${cleanEmail}!`);
-    }
-
-    setIsLoading(false);
+    setStatusMsg(`✅ פותח את WhatsApp לשליחה למספר ${phone}...`);
   };
 
   const handleCopyCode = () => {
@@ -114,11 +97,11 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '90%',
-          maxWidth: '560px',
+          maxWidth: '540px',
           background: '#0f172a',
           borderRadius: '24px',
-          border: '1.5px solid #334155',
-          boxShadow: '0 25px 70px rgba(0,0,0,0.7)',
+          border: '1.5px solid #22c55e',
+          boxShadow: '0 25px 70px rgba(0,0,0,0.8), 0 0 30px rgba(34,197,94,0.15)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -129,15 +112,15 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
         {/* Header */}
         <div style={{ padding: '20px 28px', background: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
-              📧
+            <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', boxShadow: '0 4px 12px rgba(37,211,102,0.3)' }}>
+              💬
             </div>
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: '800', margin: 0, color: '#ffffff' }}>
-                שלח קוד פרויקט למייל
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, color: '#ffffff' }}>
+                שלח קוד פרויקט ב-WhatsApp
               </h3>
               <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '3px' }}>
-                קובץ: <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>{filename}</span>
+                קובץ: <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{filename}</span>
               </div>
             </div>
           </div>
@@ -151,7 +134,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSendEmail} style={{ padding: '24px' }}>
+        <form onSubmit={handleSendWhatsApp} style={{ padding: '24px' }}>
           
           {/* Student Name */}
           <div style={{ marginBottom: '16px' }}>
@@ -166,7 +149,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
               required
               style={{
                 width: '100%',
-                padding: '10px 14px',
+                padding: '12px 14px',
                 borderRadius: '10px',
                 border: '1.5px solid #475569',
                 background: '#1e293b',
@@ -178,29 +161,36 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
             />
           </div>
 
-          {/* Email Address */}
+          {/* WhatsApp Phone Number */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '6px', fontWeight: 'bold', color: '#cbd5e1' }}>
-              ✉️ כתובת המייל לקבלת הקוד:
+              📱 מספר טלפון / WhatsApp (לשליחת הקוד):
             </label>
             <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              type="tel" 
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="052-1234567"
               required
               style={{
                 width: '100%',
-                padding: '10px 14px',
+                padding: '12px 14px',
                 borderRadius: '10px',
-                border: '1.5px solid #475569',
+                border: '1.5px solid #22c55e',
                 background: '#1e293b',
                 color: 'white',
-                fontSize: '0.95rem',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                letterSpacing: '1px',
                 outline: 'none',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                direction: 'ltr',
+                textAlign: 'right'
               }}
             />
+            <small style={{ color: '#94a3b8', fontSize: '0.78rem', marginTop: '4px', display: 'block' }}>
+              💡 הקוד יישלח ישירות לוואטסאפ של המספר שהזנת (הורים / מורה / עצמי).
+            </small>
           </div>
 
           {/* Notes */}
@@ -263,7 +253,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
                 cursor: 'pointer'
               }}
             >
-              💾 הורד קובץ .ino
+              💾 הורד קובץ .ino למחשב
             </button>
           </div>
 
@@ -301,19 +291,22 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
             </button>
             <button
               type="submit"
-              disabled={isLoading}
               style={{
-                padding: '10px 24px',
+                padding: '12px 26px',
                 borderRadius: '10px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
                 color: 'white',
-                fontWeight: 'bold',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(2,132,199,0.4)'
+                fontWeight: '800',
+                fontSize: '0.95rem',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(37,211,102,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
               }}
             >
-              {isLoading ? 'שולח...' : '✉️ שלח במייל עכשיו'}
+              💬 שלח בוואטסאפ עכשיו
             </button>
           </div>
         </form>
