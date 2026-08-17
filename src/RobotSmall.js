@@ -849,7 +849,7 @@ function RobotSmall() {
               type="button"
               onClick={() => setShowSendEmailModal(true)} 
               className="builder-btn" 
-              style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd', cursor: 'pointer', fontWeight: 'bold' }}
+              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: '#ffffff', borderColor: '#ea580c', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(234,88,12,0.3)' }}
             >
               📧 שלח קוד למייל
             </button>
@@ -1025,6 +1025,14 @@ function RobotSmall() {
             mode={flashingMode}
             board={selectedBoard}
             comPort={comPort}
+            filename={filename}
+            code={generatedCode || SUPERBOT_INO_FULL_CODE}
+          />
+
+          {/* 📧 SEND CODE TO EMAIL MODAL (FOR STANDALONE WINDOW) */}
+          <SendCodeModal 
+            isOpen={showSendEmailModal}
+            onClose={() => setShowSendEmailModal(false)}
             filename={filename}
             code={generatedCode || SUPERBOT_INO_FULL_CODE}
           />
