@@ -139,6 +139,31 @@ function ComPortStatusBadge({ currentPort, onSelectPort, board = 'esp32' }) {
         <span>🔌 חבר USB בדפדפן</span>
       </button>
 
+      {/* SMARTSTART LOCAL AGENT DOWNLOAD BUTTON */}
+      {serverOffline && (
+        <a
+          href="/SmartStart_Agent.bat"
+          download="SmartStart_Agent.bat"
+          title="הורד קובץ הפעלה מהיר לצריבה ישירה מהמחשב"
+          style={{
+            padding: '4px 10px',
+            borderRadius: '8px',
+            border: '1px solid #10b981',
+            background: '#ecfdf5',
+            color: '#047857',
+            fontSize: '0.8rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            textDecoration: 'none'
+          }}
+        >
+          <span>📥 הורד מאיץ צריבה למחשב</span>
+        </a>
+      )}
+
       {/* REFRESH BUTTON */}
       <button
         onClick={scanPorts}

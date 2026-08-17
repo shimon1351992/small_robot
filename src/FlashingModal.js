@@ -124,12 +124,8 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
         setIsFinished(true);
         setIsError(true);
 
-        addLog(`❌ שרת ה-USB המקומי אינו זמין (שרת ענן אינו יכול לצרוב ישירות ל-USB מקומי).`);
-        if (navigator.serial) {
-          addLog(`🔌 לחץ על "צרוב דרך הדפדפן (Web Serial API)" למטה לצריבה ישירה מהירה דרך ה-USB.`);
-        } else {
-          addLog(`💡 לצריבה מקומית דרך השרת: פתח טרמינל במחשב והקש: npm run server`);
-        }
+        addLog(`❌ שרת הצריבה המקומי אינו מופעל כרגע.`);
+        addLog(`⚡ להפעלת מאיץ הצריבה המהיר במחשב: הפעל את הקובץ SmartStart_Agent.bat (או הורד אותו מהכפתור הירוק למעלה).`);
       }
     };
 
