@@ -12,7 +12,16 @@ echo.
 echo =====================================================================
 echo.
 
-node server/server.js
+if exist "%~dp0server\server.js" (
+    node "%~dp0server\server.js"
+) else if exist "server\server.js" (
+    node server\server.js
+) else if exist "server.js" (
+    node server.js
+) else (
+    node "%~dp0server.js"
+)
+
 if %errorlevel% neq 0 (
     echo.
     echo ERROR: Failed to start server. Make sure Node.js is installed.

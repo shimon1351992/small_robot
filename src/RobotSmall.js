@@ -827,6 +827,15 @@ function RobotSmall() {
             }} className="builder-btn">
               ⚙️ קמפל קוד
             </button>
+            <a 
+              href="/SmartStart_Agent.bat" 
+              download="SmartStart_Agent.bat"
+              className="builder-btn" 
+              style={{ background: '#ecfdf5', color: '#047857', borderColor: '#a7f3d0', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              title="הורד והפעל מאיץ צריבה מהיר למחשב"
+            >
+              📥 מאיץ צריבה למחשב
+            </a>
 
             {saveNotification && (
               <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#15803d', background: '#f0fdf4', padding: '4px 10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>

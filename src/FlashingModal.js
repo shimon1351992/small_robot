@@ -52,12 +52,16 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
         const isLocalServer = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
 
         if (mode === 'flash') {
-          if (navigator.serial) {
-            // Instant SmartBot Web Serial Pipeline (0.4s)
+          if (isLocalServer) {
+            // Priority 1: Local Agent is active on student computer
+            addLog(`⚡ זוהה מאיץ צריבה מקומי פעיל במחשב (${baseUrl}). מתחיל צריבה ישירה מהירה ליציאה ${comPort}...`);
+          } else if (navigator.serial) {
+            // Priority 2: In-browser Web Serial protocol
             addLog(`⚡ מתחבר ב-Web Serial ישיר לרובוט ה-ESP32...`);
             await handleInstantSmartBotFlash();
             return;
-          } else if (!isLocalServer) {
+          } else {
+            // Priority 3: Cloud fallback
             addLog(`☁️ מחובר לשרת ענן (${baseUrl}). מתחיל קומפילציה וצריבה...`);
             await handleWebSerialFlash();
             return;
