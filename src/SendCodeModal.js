@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import ReactDOM from 'react-dom';
 import { getActiveServerUrl } from './serverPort';
 
 function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.ino' }) {
@@ -28,7 +27,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
     }
 
     setIsLoading(true);
-    setStatusMsg('⏳ שולח את הקוד...');
+    setStatusMsg('⏳ מכין את המייל לשליחה...');
 
     try {
       const baseUrl = await getActiveServerUrl();
@@ -73,7 +72,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
     URL.revokeObjectURL(url);
   };
 
-  const modalContent = (
+  return (
     <div 
       onClick={onClose}
       style={{
@@ -88,7 +87,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9999999,
+        zIndex: 999999,
         backdropFilter: 'blur(8px)',
         direction: 'rtl',
         margin: 0,
@@ -305,8 +304,6 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
       </div>
     </div>
   );
-
-  return typeof document !== 'undefined' ? ReactDOM.createPortal(modalContent, document.body) : modalContent;
 }
 
 export default SendCodeModal;

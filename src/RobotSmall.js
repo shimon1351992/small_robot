@@ -847,15 +847,7 @@ function RobotSmall() {
             </button>
             <button 
               type="button"
-              onClick={() => {
-                if (workspace) {
-                  try {
-                    const freshCode = generateCodeForWorkspace(workspace);
-                    setGeneratedCode(freshCode);
-                  } catch (e) {}
-                }
-                setShowSendEmailModal(true);
-              }} 
+              onClick={() => setShowSendEmailModal(true)} 
               className="builder-btn" 
               style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd', cursor: 'pointer', fontWeight: 'bold' }}
             >
