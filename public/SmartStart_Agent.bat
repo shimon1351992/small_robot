@@ -1,15 +1,13 @@
 @echo off
-chcp 65001 >nul
-title 🚀 SmartStart Robot Local Agent (Port 3001)
-color 0b
+title SmartStart Robot Local Agent (Port 3001)
+color 0A
 cls
 echo =====================================================================
-echo           🤖 SmartStart Robot - Local Flashing Agent
+echo           SmartStart Robot - Local Flashing Agent (Port 3001)
 echo =====================================================================
 echo.
-echo  ⚡ מאיץ הצריבה המקומי פועל כעת במחשב שלך!
-echo  🌐 פתח את האתר בדפדפן (Netlify) ולחץ על "צרוב"
-echo  🔌 השרת יזהה אוטומטית את חיבור ה-USB ויצרוב תוך 2 שניות ב-100%% הצלחה!
+echo  Local Flashing Server is RUNNING!
+echo  Open your browser, connect your ESP32 via USB, and click FLASH!
 echo.
 echo =====================================================================
 echo.
@@ -17,6 +15,7 @@ echo.
 node server/server.js
 if %errorlevel% neq 0 (
     echo.
-    echo ❌ שגיאה בהפעלת השרת. ודא ש-Node.js מותקן במחשב.
-    pause
+    echo ERROR: Failed to start server. Make sure Node.js is installed.
+    echo.
 )
+pause
