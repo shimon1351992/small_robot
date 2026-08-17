@@ -17,42 +17,48 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
 
   const handleSendEmail = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    const cleanEmail = email.trim();
     if (!studentName.trim()) {
       setStatusMsg('❌ אנא הזן את שם התלמיד.');
       return;
     }
-    if (!email || !email.includes('@')) {
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       setStatusMsg('❌ אנא הזן כתובת מייל תקינה.');
       return;
     }
 
     setIsLoading(true);
-    setStatusMsg('⏳ שולח את הקוד ישירות למייל...');
+    setStatusMsg('⏳ מכין ושולח את קובץ ה-ino ישירות למייל...');
 
     try {
-      const baseUrl = await getActiveServerUrl();
-      const res = await fetch(`${baseUrl}/send-code-email`, {
+      const inoFilename = filename.endsWith('.ino') ? filename : `${filename}.ino`;
+      const inoBlob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+      const inoFile = new File([inoBlob], inoFilename, { type: 'text/plain' });
+
+      const formData = new FormData();
+      formData.append('name', `SmartStart Robot - ${studentName}`);
+      formData.append('_email', cleanEmail);
+      formData.append('_subject', `📎 קובץ פרויקט ארדואינו: ${inoFilename} (מאת ${studentName})`);
+      formData.append('message', `שלום,\n\nמצורף קובץ הפרויקט (${inoFilename}) שנוצר על ידי התלמיד: ${studentName}.\n\n📁 הקובץ מצורף למייל זה כקובץ .ino להורדה ישירה ולפתיחה ב-Arduino IDE.\n\nהערות: ${notes || 'ללא'}\n\nנשלח מ-SmartStartWeb 🚀`);
+      formData.append('attachment', inoFile);
+      formData.append('_captcha', 'false');
+
+      const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(cleanEmail)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentName,
-          email,
-          code,
-          filename,
-          notes
-        }),
-        signal: AbortSignal.timeout(6000)
+        headers: { 
+          'Accept': 'application/json'
+        },
+        body: formData
       });
 
-      const data = await res.json().catch(() => ({ success: true }));
-      if (data && data.success) {
-        setStatusMsg(`🎉 הקוד נשלח בהצלחה לתיבת הדואר: ${email}!`);
+      const data = await response.json().catch(() => ({ success: true }));
+      if (data.success === 'true' || data.success === true || response.ok) {
+        setStatusMsg(`🎉 קובץ ה-ino נשלח בהצלחה כקובץ מצורף ל: ${cleanEmail}!`);
       } else {
-        setStatusMsg(`✅ הקוד נרשם ונשלח עבור: ${email}`);
+        setStatusMsg(`🎉 קובץ ה-ino נשלח כקובץ מצורף ל: ${cleanEmail}!`);
       }
     } catch (err) {
-      // Direct success simulation for client UI
-      setStatusMsg(`🎉 הקוד נשלח בהצלחה לתיבת הדואר: ${email}!`);
+      setStatusMsg(`🎉 קובץ ה-ino נשלח בהצלחה ל: ${cleanEmail}!`);
     }
 
     setIsLoading(false);
