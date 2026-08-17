@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { getActiveServerUrl } from './serverPort';
 
 function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.ino' }) {
-  const [email, setEmail] = useState('shimon1351992@gmail.com');
+  const [studentName, setStudentName] = useState('');
+  const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -11,6 +12,10 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
+    if (!studentName.trim()) {
+      setStatusMsg('❌ אנא הזן את שמך.');
+      return;
+    }
     if (!email || !email.includes('@')) {
       setStatusMsg('❌ אנא הזן כתובת מייל תקינה.');
       return;
@@ -25,6 +30,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          studentName,
           email,
           code,
           filename,
@@ -40,7 +46,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
           onClose();
         }, 1800);
       } else {
-        // Fallback: Mailto link if server email service isn't configured
+        // Fallback: Mailto link
         triggerMailtoFallback();
       }
     } catch (err) {
@@ -49,10 +55,10 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
   };
 
   const triggerMailtoFallback = () => {
-    const subject = encodeURIComponent(`💻 קוד פרויקט: ${filename}`);
-    const body = encodeURIComponent(`שלום,\n\nמצורף הקוד מהפרויקט שלך:\n\n====================\n${code}\n====================\n\nהערות:\n${notes}\n\nנשלח מ-SmartStartWeb 🚀`);
+    const subject = encodeURIComponent(`💻 קוד פרויקט: ${filename} (נשלח ע"י ${studentName || 'תלמיד'})`);
+    const body = encodeURIComponent(`שלום,\n\nמצורף הקוד מהפרויקט של ${studentName || 'התלמיד'}:\nקובץ: ${filename}\n\n====================\n${code}\n====================\n\nהערות:\n${notes}\n\nנשלח מ-SmartStart 🚀`);
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-    setStatusMsg(`📧 נפתח חלון שליחת מייל בדפדפן עבר ${email}`);
+    setStatusMsg(`📧 נפתח חלון שליחת מייל בדפדפן עבור ${email}`);
     setIsLoading(false);
   };
 
@@ -102,14 +108,41 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
 
         {/* Form Body */}
         <form onSubmit={handleSendEmail} style={{ padding: '24px' }}>
+          
+          {/* Student Name */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '6px', fontWeight: 'bold', color: '#cbd5e1' }}>
-              כתובת המייל לשליחה:
+              👤 שם התלמיד / יוצר הפרויקט:
+            </label>
+            <input 
+              type="text" 
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              placeholder="למשל: דניאל כהן"
+              required
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid #475569',
+                background: '#1e293b',
+                color: 'white',
+                fontSize: '0.95rem',
+                outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Email Address */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '6px', fontWeight: 'bold', color: '#cbd5e1' }}>
+              ✉️ כתובת המייל לקבלת הקוד:
             </label>
             <input 
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
               required
               style={{
                 width: '100%',

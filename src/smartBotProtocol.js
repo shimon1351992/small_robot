@@ -9,7 +9,17 @@
 export function translateCodeToSmartBotCommands(code) {
   if (!code) return [];
   const commands = [];
-  const lines = code.split('\n');
+
+  // Extract only setup and loop bodies to avoid inactive helper functions
+  let targetCode = code;
+  const setupMatch = code.match(/void\s+setup\s*\(\s*\)\s*\{([\s\S]*?)\}/);
+  const loopMatch = code.match(/void\s+loop\s*\(\s*\)\s*\{([\s\S]*?)\}/);
+
+  if (setupMatch || loopMatch) {
+    targetCode = (setupMatch ? setupMatch[1] : '') + '\n' + (loopMatch ? loopMatch[1] : '');
+  }
+
+  const lines = targetCode.split('\n');
 
   for (let rawLine of lines) {
     const line = rawLine.trim();
