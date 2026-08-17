@@ -7,13 +7,18 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
   const [notes, setNotes] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
+
+  const buildEmailBody = () => {
+    return `שלום,\n\nמצורף הקוד מהפרויקט של ${studentName || 'התלמיד'}:\nקובץ: ${filename}\nתאריך: ${new Date().toLocaleDateString('he-IL')}\n\n==================== קוד C++ / Arduino ====================\n${code}\n===========================================================\n\nהערות:\n${notes || 'ללא הערות נוספות'}\n\nנשלח מ-SmartStartWeb 🚀`;
+  };
 
   const handleSendEmail = async (e) => {
     e.preventDefault();
     if (!studentName.trim()) {
-      setStatusMsg('❌ אנא הזן את שמך.');
+      setStatusMsg('❌ אנא הזן את שם התלמיד.');
       return;
     }
     if (!email || !email.includes('@')) {
@@ -22,7 +27,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
     }
 
     setIsLoading(true);
-    setStatusMsg('⏳ שולח את הקוד למייל...');
+    setStatusMsg('⏳ שולח את הקוד...');
 
     try {
       const baseUrl = await getActiveServerUrl();
@@ -35,31 +40,46 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
           code,
           filename,
           notes
-        })
+        }),
+        signal: AbortSignal.timeout(3000)
       });
 
       const data = await res.json();
       if (data.success) {
-        setStatusMsg(`✅ הקוד נשלח בהצלחה למייל: ${email}`);
-        setTimeout(() => {
-          setIsLoading(false);
-          onClose();
-        }, 1800);
-      } else {
-        // Fallback: Mailto link
-        triggerMailtoFallback();
+        setStatusMsg(`✅ הקוד נרשם ונשלח בהצלחה עבור: ${email}`);
       }
     } catch (err) {
-      triggerMailtoFallback();
+      // Fallback to direct client mail trigger
     }
+
+    // Always trigger Gmail / Mail client fallback so the student gets an immediate mail window
+    const subject = encodeURIComponent(`💻 קוד פרויקט: ${filename} (נשלח ע"י ${studentName})`);
+    const body = encodeURIComponent(buildEmailBody());
+    
+    // Open Gmail web compose in a new tab if user uses webmail, or mailto
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, '_blank');
+
+    setStatusMsg(`📧 נפתח חלון שליחת מייל ב-Gmail / דפדפן עבור ${email}`);
+    setIsLoading(false);
   };
 
-  const triggerMailtoFallback = () => {
-    const subject = encodeURIComponent(`💻 קוד פרויקט: ${filename} (נשלח ע"י ${studentName || 'תלמיד'})`);
-    const body = encodeURIComponent(`שלום,\n\nמצורף הקוד מהפרויקט של ${studentName || 'התלמיד'}:\nקובץ: ${filename}\n\n====================\n${code}\n====================\n\nהערות:\n${notes}\n\nנשלח מ-SmartStart 🚀`);
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-    setStatusMsg(`📧 נפתח חלון שליחת מייל בדפדפן עבור ${email}`);
-    setIsLoading(false);
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadIno = () => {
+    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'superbot_car.ino';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -71,8 +91,8 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.75)',
-        backdropFilter: 'blur(4px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+        backdropFilter: 'blur(5px)',
         zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
@@ -88,7 +108,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
           background: '#0f172a',
           borderRadius: '16px',
           border: '1px solid #334155',
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)',
           overflow: 'hidden',
           color: 'white'
         }}
@@ -142,7 +162,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
               type="email" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="student@gmail.com"
               required
               style={{
                 width: '100%',
@@ -157,15 +177,16 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
             />
           </div>
 
+          {/* Notes */}
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '6px', fontWeight: 'bold', color: '#cbd5e1' }}>
-              הערות או תיאור פרויקט (אופציונלי):
+              📝 הערות או תיאור פרויקט (אופציונלי):
             </label>
             <textarea 
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="הוסף הערה קצרה לגבי הקוד..."
+              rows={2}
+              placeholder="הוסף הערה קצרה..."
               style={{
                 width: '100%',
                 padding: '10px 14px',
@@ -178,6 +199,45 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
                 resize: 'none'
               }}
             />
+          </div>
+
+          {/* Quick utility buttons */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '6px',
+                border: '1px solid #475569',
+                background: copied ? '#065f46' : '#1e293b',
+                color: copied ? '#34d399' : '#94a3b8',
+                fontSize: '0.82rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              {copied ? '✅ הקוד הועתק!' : '📋 העתק קוד ללוח'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadIno}
+              style={{
+                flex: 1,
+                padding: '8px 10px',
+                borderRadius: '6px',
+                border: '1px solid #475569',
+                background: '#1e293b',
+                color: '#94a3b8',
+                fontSize: '0.82rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              💾 הורד קובץ .ino
+            </button>
           </div>
 
           {statusMsg && (
@@ -210,7 +270,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
                 cursor: 'pointer'
               }}
             >
-              ביטול
+              סגור
             </button>
             <button
               type="submit"
@@ -226,7 +286,7 @@ function SendCodeModal({ isOpen, onClose, code = '', filename = 'superbot_car.in
                 boxShadow: '0 4px 12px rgba(2,132,199,0.3)'
               }}
             >
-              {isLoading ? 'שולח...' : '✉️ שלח קוד עכשיו'}
+              {isLoading ? 'שולח...' : '✉️ שלח במייל עכשיו'}
             </button>
           </div>
         </form>
