@@ -848,11 +848,16 @@ function RobotSmall() {
             <button 
               type="button"
               onClick={() => {
-                handleSaveCode();
+                if (workspace) {
+                  try {
+                    const freshCode = generateCodeForWorkspace(workspace);
+                    setGeneratedCode(freshCode);
+                  } catch (e) {}
+                }
                 setShowSendEmailModal(true);
               }} 
               className="builder-btn" 
-              style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd', cursor: 'pointer' }}
+              style={{ background: '#f0f9ff', color: '#0284c7', borderColor: '#bae6fd', cursor: 'pointer', fontWeight: 'bold' }}
             >
               📧 שלח קוד למייל
             </button>
