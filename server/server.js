@@ -6,7 +6,12 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.options('*', cors());
 app.use(express.json({ limit: '10mb' }));
 
 // Determine executable path for arduino-cli (Windows / Linux / Render)
@@ -684,9 +689,9 @@ app.post('/compile', (req, res) => {
 
   prepareProjectFiles(projectPath, runId, code, headerCode, cppCode);
 
-  console.log(`[Compile] Building FQBN: ${fqbn} at ${projectPath}`);
+  console.log(`[Compile] Building FQBN: ${fqbn} at ${projectPath} with cacheDir: ${cacheDir}`);
 
-  const cmd = `${arduinoCliPath} compile --fqbn "${fqbn}" --output-dir "${buildOutDir}" "${projectPath}"`;
+  const cmd = `${arduinoCliPath} compile --fqbn "${fqbn}" --build-cache-path "${cacheDir}" --output-dir "${buildOutDir}" "${projectPath}"`;
   exec(cmd, { maxBuffer: 1024 * 1024 * 20, timeout: 300000 }, (err, stdout, stderr) => {
     if (err) {
       res.json({ success: false, output: stderr || stdout || err.message || 'שגיאת קומפילציה' });

@@ -22,4 +22,12 @@ export PATH="$(pwd)/server/bin:$PATH"
 echo "⚡ Installing ESP32 Board Core (this enables cloud compilation)..."
 ./server/bin/arduino-cli core install esp32:esp32
 
+echo "🔥 Pre-warming ESP32 Core cache (speeds up student flashing to 2 seconds)..."
+mkdir -p ./server/arduino_cache
+mkdir -p ./server/arduino_temp/warmup
+echo "void setup(){} void loop(){}" > ./server/arduino_temp/warmup/warmup.ino
+./server/bin/arduino-cli compile --fqbn esp32:esp32:esp32 --build-cache-path ./server/arduino_cache ./server/arduino_temp/warmup || true
+rm -rf ./server/arduino_temp/warmup
+
 echo "✅ Render Build Finished Successfully!"
+

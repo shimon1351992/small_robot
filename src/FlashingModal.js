@@ -425,24 +425,6 @@ function FlashingModal({ isOpen, onClose, mode = 'flash', board = 'esp32', comPo
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {isError && (
-              <button
-                onClick={handleWebSerialFlash}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '10px',
-                  border: '1px solid #3b82f6',
-                  background: '#1d4ed8',
-                  color: '#ffffff',
-                  fontWeight: 'bold',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer'
-                }}
-              >
-                🔌 צרוב דרך הדפדפן (Web Serial API)
-              </button>
-            )}
-
             {!isFinished && (
               <button
                 onClick={handleCancelFlashing}
