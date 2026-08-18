@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1787067735448,
+    "className": "כיתה ט6 רובוטיקה",
+    "classCode": "CLS-7GYZ",
+    "createdTeacher": "שמעון יעיש",
+    "assignedTracks": [
+      "car"
+    ],
+    "joinedStudents": [
+      {
+        "name": "יעקוב גדיף",
+        "joinedAt": "2026-08-18T15:43:08.986Z"
+      },
+      {
+        "name": "משה כהן",
+        "joinedAt": "2026-08-18T16:17:42.828Z"
+      },
+      {
+        "name": "מוטי שאול",
+        "joinedAt": "2026-08-18T16:43:54.098Z"
+      },
+      {
+        "name": "דנה וייסמן",
+        "joinedAt": "2026-08-18T17:23:48.616Z"
+      }
+    ],
+    "createdAt": "2026-08-18T15:42:15.448Z"
+  },
+  {
+    "id": 1787073427372,
+    "className": "כיתה יב' רובוטיקה",
+    "classCode": "CLS-H77W",
+    "createdTeacher": "שמעון יעיש",
+    "assignedTracks": [
+      "car",
+      "turtle"
+    ],
+    "joinedStudents": [
+      {
+        "name": "חיים כהן",
+        "joinedAt": "2026-08-18T17:17:40.101Z"
+      }
+    ],
+    "createdAt": "2026-08-18T17:17:07.372Z"
+  }
+]

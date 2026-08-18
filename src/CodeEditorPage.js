@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import MonacoEditor from 'react-monaco-editor';
 import FlashingModal from './FlashingModal';
+import SendCodeModal from './SendCodeModal';
+import SavedProjectModal from './SavedProjectModal';
 import ComPortStatusBadge from './ComPortStatusBadge';
 
 function CodeEditorPage() {
@@ -27,6 +29,8 @@ void loop() {
   const [compileResult, setCompileResult] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showFlashingModal, setShowFlashingModal] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [showSavedProjectModal, setShowSavedProjectModal] = useState(false);
   const [flashingMode, setFlashingMode] = useState('flash');
 
   const handleCompile = async () => {
@@ -105,6 +109,18 @@ void loop() {
             />
           </div>
 
+          <button onClick={() => setShowSendModal(true)} className="builder-btn" style={{ background: '#3b82f6', color: 'white' }}>
+            📤 שלח למורה
+          </button>
+          <button 
+            type="button"
+            onClick={() => setShowSavedProjectModal(true)} 
+            className="builder-btn" 
+            style={{ background: '#ecfdf5', color: '#047857', borderColor: '#a7f3d0', cursor: 'pointer', fontWeight: 'bold' }}
+            title="שמור פרויקט אישי בענן תחת סיסמה או פתח פרויקט קודם"
+          >
+            💾 שמור / 📂 פתח פרויקט
+          </button>
           <button onClick={handleDownload} className="builder-btn">
             📥 הורד קוד (.ino)
           </button>
@@ -145,6 +161,30 @@ void loop() {
         comPort={comPort}
         filename={filename}
         code={code}
+      />
+
+      {/* 📤 SEND CODE TO TEACHER / WHATSAPP MODAL */}
+      <SendCodeModal
+        isOpen={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        filename={filename}
+        projectName="עורך קוד ארדואינו עצמאי"
+        projectType="builder"
+        code={code}
+      />
+
+      {/* 🔒 PERSONAL SAVED PROJECT MODAL */}
+      <SavedProjectModal
+        isOpen={showSavedProjectModal}
+        onClose={() => setShowSavedProjectModal(false)}
+        projectType="builder"
+        defaultProjectName="עורך קוד ארדואינו עצמאי"
+        currentBlockXml=""
+        currentCode={code}
+        onLoadProject={({ code: loadedCode, projectName: loadedProjName }) => {
+          if (loadedCode) setCode(loadedCode);
+          if (loadedProjName) setFilename(loadedProjName.endsWith('.ino') ? loadedProjName : `${loadedProjName}.ino`);
+        }}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import {
   registerSingleBlock, 
   addBlockToRegistry
 } from './blockRegistry';
+import ConfirmModal from './ConfirmModal';
 
 // Supported Programming Languages
 const SUPPORTED_LANGUAGES = [
@@ -473,26 +474,66 @@ function CodeToBlock() {
     setActiveTab('library');
   };
 
+  // Custom Confirm/Alert Dialog State
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    icon: '💡',
+    type: 'primary',
+    confirmText: 'אישור',
+    cancelText: 'ביטול',
+    onConfirm: null
+  });
+
   // Export Project Blocks to Main Studio
   const handleExportToMainStudio = () => {
     if (!activeProject || !activeProject.blocks.length) {
-      alert('אין בלוקים בפרויקט הנוכחי לייצוא!');
+      setConfirmDialog({
+        isOpen: true,
+        title: 'אין בלוקים לייצוא',
+        message: 'אין בלוקים בפרויקט הנוכחי לייצוא לסביבות הפיתוח.',
+        icon: '⚠️',
+        type: 'warning',
+        confirmText: 'הבנתי',
+        cancelText: null,
+        onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     localStorage.setItem('userCustomBlocks', JSON.stringify(activeProject.blocks));
-    alert(`🚀 ${activeProject.blocks.length} בלוקים מתוך הפרויקט "${activeProject.name}" ייוצאו בהצלחה לסביבות הפיתוח הראשיות!`);
+    setConfirmDialog({
+      isOpen: true,
+      title: 'הייצוא הושלם בהצלחה!',
+      message: `🚀 ${activeProject.blocks.length} בלוקים מתוך הפרויקט "${activeProject.name}" ייוצאו בהצלחה לכל סביבות הפיתוח באתר!`,
+      icon: '🎉',
+      type: 'success',
+      confirmText: 'מעולה!',
+      cancelText: null,
+      onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+    });
   };
 
   // Delete Block Handler
   const handleDeleteBlock = (blockId) => {
-    if (window.confirm('האם למחוק בלוק זה?')) {
-      setProjects(prev => prev.map(p => {
-        if (p.id === activeProjectId) {
-          return { ...p, blocks: p.blocks.filter(b => b.id !== blockId) };
-        }
-        return p;
-      }));
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'מחיקת בלוק מותאם אישית',
+      message: 'האם אתה בטוח שברצונך למחוק בלוק זה מהפרויקט?',
+      icon: '🗑️',
+      type: 'danger',
+      confirmText: 'מחק בלוק',
+      cancelText: 'ביטול',
+      onConfirm: () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setProjects(prev => prev.map(p => {
+          if (p.id === activeProjectId) {
+            return { ...p, blocks: p.blocks.filter(b => b.id !== blockId) };
+          }
+          return p;
+        }));
+      }
+    });
   };
 
   return (
@@ -844,6 +885,19 @@ function CodeToBlock() {
         )}
 
       </div>
+
+      {/* 🔔 CUSTOM SYSTEM CONFIRM/ALERT MODAL */}
+      <ConfirmModal
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        icon={confirmDialog.icon}
+        type={confirmDialog.type}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

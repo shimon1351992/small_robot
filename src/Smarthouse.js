@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as Blockly from 'blockly';
 import { javascriptGenerator } from 'blockly/javascript';
 import MonacoEditor from 'react-monaco-editor';
@@ -7,6 +7,7 @@ import 'blockly/javascript';
 import { registerAllBlocks, getAllRegisteredBlocks, registerFallbackBlock, SYSTEM_CUSTOM_BLOCKS, getDynamicProjectCategories } from './blockRegistry';
 import AIBlockGeneratorModal from './AIBlockGeneratorModal';
 import FlashingModal from './FlashingModal';
+import SubscriptionModal, { isTrackUnlocked } from './SubscriptionModal';
 import ComPortStatusBadge from './ComPortStatusBadge';
 import { SMARTHOUSE_HERO } from './projectImages';
 import { mergeBlocksWithBaseTemplate, SUPERBOT_INO_FULL_CODE } from './superbotCode';
@@ -474,17 +475,45 @@ const SMART_HOME_CHAPTERS = [
 ];
 
 function Smarthouse() {
+  const navigate = useNavigate();
   const [smartHouseKit, setSmartHouseKit] = useState('ks5009'); // 'ks5009' (ESP32 Built-in) | 'ks0085' (Arduino External ESP)
   const [showKitSelectModal, setShowKitSelectModal] = useState(true); // Popup modal on entrance
   const [activeTab, setActiveTab] = useState('curriculum');
   const [selectedLessonId, setSelectedLessonId] = useState('ks_welcome');
   const [completedLessons, setCompletedLessons] = useState({});
 
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      const isTeacher = !!sessionStorage.getItem('smartstart_teacher_user');
+      navigate(isTeacher ? '/tracks' : '/');
+    }
+  };
+
   // Lightbox, AI & Flashing Modal States
   const [zoomImageSrc, setZoomImageSrc] = useState(null);
   const [showAIModal, setShowAIModal] = useState(false);
   const [showFlashingModal, setShowFlashingModal] = useState(false);
   const [flashingMode, setFlashingMode] = useState('flash');
+
+  // 🔑 Access & Subscription Gate
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [selectedLockedLesson, setSelectedLockedLesson] = useState(null);
+  const [isUnlocked, setIsUnlocked] = useState(() => isTrackUnlocked('smarthouse'));
+
+  const isLessonFree = (lessonId) => {
+    return lessonId === 'ks_welcome' || lessonId === 'ks_step_1.1' || lessonId === 'ks_step_1.2' || lessonId === '2.21';
+  };
+
+  const handleLessonClick = (lesson) => {
+    if (!isUnlocked && !isLessonFree(lesson.id)) {
+      setSelectedLockedLesson(lesson);
+      setShowSubscriptionModal(true);
+      return;
+    }
+    setSelectedLessonId(lesson.id);
+  };
 
   // Workspace Controls State
   const [selectedBoard, setSelectedBoard] = useState('esp32');
@@ -653,46 +682,87 @@ function Smarthouse() {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', direction: 'rtl', overflow: 'hidden', position: 'relative' }}>
       
-      {/* 🌟 TOP STUDIO NAVBAR */}
-      <div className="builder-header-toolbar" style={{ padding: '12px 24px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-        <div className="builder-brand-group">
-          <Link to="/" className="builder-btn" style={{ textDecoration: 'none', background: '#f8fafc' }}>
-            🏠 דף הבית
-          </Link>
-          <div style={{ marginRight: '16px', display: 'flex', flexDirection: 'column' }}>
-            <span className="builder-brand-title" style={{ fontSize: '1.15rem' }}>
-              ⚡ בית חכם (Smart House IoT Kit)
-            </span>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-              מסלול הרכבה וקוד מלא | {currentChapter.title} - {currentLesson.title}
-            </span>
+      {/* 🌟 TOP STUDIO NAVBAR (ONLY SHOWN FOR IN-DEPTH LESSONS, HIDDEN ON WELCOME LANDING) */}
+      {!currentLesson.isWelcomePage && (
+        <div className="builder-header-toolbar" style={{ padding: '12px 24px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+          <div className="builder-brand-group">
+            <Link to="/" className="builder-btn" style={{ textDecoration: 'none', background: '#f8fafc' }}>
+              🏠 דף הבית
+            </Link>
+            <div style={{ marginRight: '16px', display: 'flex', flexDirection: 'column' }}>
+              <span className="builder-brand-title" style={{ fontSize: '1.15rem' }}>
+                ⚡ בית חכם (Smart House IoT Kit)
+              </span>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                מסלול הרכבה וקוד מלא | {currentChapter.title} - {currentLesson.title}
+              </span>
+            </div>
+          </div>
+
+          {/* Action Controls */}
+          <div className="builder-controls-wrapper" style={{ gap: '10px' }}>
+            <button 
+              onClick={() => setShowAIModal(true)}
+              className="builder-btn builder-btn-hero"
+              style={{ background: 'linear-gradient(135deg, #FF007A 0%, #FF758C 100%)', color: '#ffffff', border: 'none', fontWeight: '800' }}
+            >
+              ✨ מחולל AI לבלוקים
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('curriculum')} 
+              className={`builder-btn ${activeTab === 'curriculum' ? 'builder-btn-hero' : ''}`}
+            >
+              📚 תוכנית הלימודים וההרכבה המלאה (20 שלבי CAD)
+            </button>
+            <button 
+              onClick={() => setActiveTab('workspace')} 
+              className={`builder-btn ${activeTab === 'workspace' ? 'builder-btn-hero' : ''}`}
+            >
+              🧪 סביבת פיתוח בבלוקים וקוד C++
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Action Controls */}
-        <div className="builder-controls-wrapper" style={{ gap: '10px' }}>
-          <button 
-            onClick={() => setShowAIModal(true)}
-            className="builder-btn builder-btn-hero"
-            style={{ background: 'linear-gradient(135deg, #FF007A 0%, #FF758C 100%)', color: '#ffffff', border: 'none', fontWeight: '800' }}
-          >
-            ✨ מחולל AI לבלוקים
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('curriculum')} 
-            className={`builder-btn ${activeTab === 'curriculum' ? 'builder-btn-hero' : ''}`}
-          >
-            📚 תוכנית הלימודים וההרכבה המלאה (20 שלבי CAD)
-          </button>
-          <button 
-            onClick={() => setActiveTab('workspace')} 
-            className={`builder-btn ${activeTab === 'workspace' ? 'builder-btn-hero' : ''}`}
-          >
-            🧪 סביבת פיתוח בבלוקים וקוד C++
-          </button>
-        </div>
-      </div>
+      {/* 🔙 TOP-LEFT CLEAN BACK BUTTON (FOR WELCOME LANDING ONLY) */}
+      {currentLesson.isWelcomePage && (
+        <button
+          onClick={handleGoBack}
+          style={{
+            position: 'fixed',
+            top: '24px',
+            left: '24px',
+            zIndex: 9999,
+            padding: '12px 24px',
+            borderRadius: '16px',
+            background: 'rgba(255, 255, 255, 0.15)',
+            border: '1.5px solid rgba(255, 255, 255, 0.3)',
+            color: '#ffffff',
+            fontSize: '1rem',
+            fontWeight: '800',
+            cursor: 'pointer',
+            backdropFilter: 'blur(16px)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
+            transition: 'all 0.25s ease',
+            fontFamily: "'Rubik', sans-serif"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+          }}
+        >
+          <span style={{ fontSize: '1.2rem', lineHeight: '1' }}>←</span>
+          <span>חזרה</span>
+        </button>
+      )}
 
       {/* MAIN LAYOUT */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -800,28 +870,68 @@ function Smarthouse() {
                       </button>
                     </div>
 
-                    {/* HERO PROTOTYPE SHOWCASE CARD */}
-                    <div style={{ background: 'rgba(15, 23, 42, 0.65)', border: '2px solid rgba(244, 63, 94, 0.3)', borderRadius: '28px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', color: '#fda4af', fontWeight: '800', marginBottom: '12px' }}>
+                    {/* HERO PROTOTYPE SHOWCASE CARD (CLEAN WHITE BG & CONTAINED PROTOTYPE) */}
+                    <div style={{
+                      background: '#ffffff',
+                      border: '2.5px solid rgba(254, 205, 211, 0.9)',
+                      borderRadius: '28px',
+                      overflow: 'hidden',
+                      boxShadow: '0 25px 65px rgba(0,0,0,0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      height: '370px',
+                      padding: '24px 20px',
+                      boxSizing: 'border-box'
+                    }}>
+                      <div style={{
+                        position: 'absolute',
+                        top: '16px',
+                        right: '16px',
+                        zIndex: 3,
+                        background: 'rgba(15, 23, 42, 0.88)',
+                        border: '1px solid rgba(244, 63, 94, 0.4)',
+                        padding: '6px 14px',
+                        borderRadius: '12px',
+                        fontSize: '0.82rem',
+                        color: '#fecdd3',
+                        fontWeight: '800',
+                        backdropFilter: 'blur(10px)',
+                        fontFamily: 'inherit',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                      }}>
                         📸 דגם מוגמר סופי - Smart Home IoT KS5009
-                      </span>
-                      <div style={{ width: '100%', height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: '20px', padding: '16px' }}>
-                        <img 
-                          src={SMARTHOUSE_HERO} 
-                          alt="Smart Home IoT Prototype"
-                          style={{ maxWidth: '100%', maxHeight: '290px', objectFit: 'contain' }}
-                        />
                       </div>
+                      <img 
+                        src={SMARTHOUSE_HERO} 
+                        alt="Smart Home IoT Prototype"
+                        style={{
+                          maxWidth: '88%',
+                          maxHeight: '88%',
+                          objectFit: 'contain',
+                          objectPosition: 'center',
+                          display: 'block'
+                        }}
+                      />
                     </div>
                   </div>
 
                   {/* 4 CYBER EXPERIENCE CARDS */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
                     {currentLesson.features.map((feat, idx) => (
-                      <div key={idx} style={{ background: 'rgba(15, 23, 42, 0.55)', border: '1.5px solid rgba(255, 255, 255, 0.1)', borderRadius: '22px', padding: '24px', backdropFilter: 'blur(16px)', textAlign: 'right' }}>
+                      <div key={idx} style={{
+                        background: 'rgba(15, 23, 42, 0.55)',
+                        border: '1.5px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '22px',
+                        padding: '24px',
+                        backdropFilter: 'blur(16px)',
+                        textAlign: 'right',
+                        fontFamily: 'inherit'
+                      }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>{feat.icon}</div>
-                        <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', margin: '0 0 8px 0' }}>{feat.title}</h4>
-                        <p style={{ fontSize: '0.95rem', color: '#94a3b8', margin: 0, lineHeight: '1.6' }}>{feat.desc}</p>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', margin: '0 0 8px 0', fontFamily: 'inherit' }}>{feat.title}</h4>
+                        <p style={{ fontSize: '0.95rem', color: '#cbd5e1', margin: 0, lineHeight: '1.6', fontFamily: 'inherit' }}>{feat.desc}</p>
                       </div>
                     ))}
                   </div>
@@ -1386,6 +1496,23 @@ function Smarthouse() {
           </div>
         </div>
       )}
+
+      {/* 🔑 SUBSCRIPTION & CLASS ACCESS CODE MODAL */}
+      <SubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={() => {
+          setShowSubscriptionModal(false);
+          setSelectedLockedLesson(null);
+        }}
+        projectType="smarthouse"
+        lessonTitle={selectedLockedLesson ? selectedLockedLesson.title : ''}
+        onUnlockSuccess={(license) => {
+          setIsUnlocked(true);
+          if (selectedLockedLesson) {
+            setSelectedLessonId(selectedLockedLesson.id);
+          }
+        }}
+      />
 
     </div>
   );

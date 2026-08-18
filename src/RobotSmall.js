@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as Blockly from 'blockly';
 import { javascriptGenerator } from 'blockly/javascript';
 import MonacoEditor from 'react-monaco-editor';
@@ -8,6 +8,8 @@ import { registerAllBlocks, getAllRegisteredBlocks, registerFallbackBlock, SYSTE
 import AIBlockGeneratorModal from './AIBlockGeneratorModal';
 import FlashingModal from './FlashingModal';
 import SendCodeModal from './SendCodeModal';
+import SavedProjectModal from './SavedProjectModal';
+import SubscriptionModal, { isTrackUnlocked } from './SubscriptionModal';
 import ComPortStatusBadge from './ComPortStatusBadge';
 import { SUPERBOT_H_CODE, SUPERBOT_CPP_CODE, SUPERBOT_INO_FULL_CODE, mergeBlocksWithBaseTemplate } from './superbotCode';
 import { TURTLE_HERO } from './projectImages';
@@ -503,8 +505,18 @@ const SUPERBOT_CHAPTERS = [
 ];
 
 function RobotSmall() {
+  const navigate = useNavigate();
   const [selectedLessonId, setSelectedLessonId] = useState('step_0.0');
   const [completedLessons, setCompletedLessons] = useState({});
+
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      const isTeacher = !!sessionStorage.getItem('smartstart_teacher_user');
+      navigate(isTeacher ? '/tracks' : '/');
+    }
+  };
 
   // Lightbox, AI & Flashing Modal States
   const [zoomImageSrc, setZoomImageSrc] = useState(null);
@@ -535,6 +547,47 @@ function RobotSmall() {
   const [isCodeSaved, setIsCodeSaved] = useState(false);
   const [saveNotification, setSaveNotification] = useState('');
   const [showSendEmailModal, setShowSendEmailModal] = useState(false);
+  const [showSavedProjectModal, setShowSavedProjectModal] = useState(false);
+  const [savedProjectModalTab, setSavedProjectModalTab] = useState('save');
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+
+  // 🔑 Access & Subscription Gate
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [selectedLockedLesson, setSelectedLockedLesson] = useState(null);
+  const [isUnlocked, setIsUnlocked] = useState(() => isTrackUnlocked('turtle'));
+
+  const isLessonFree = (lessonId) => {
+    return lessonId === 'welcome' || lessonId === 'intro' || lessonId === '1.0' || lessonId === '2.1';
+  };
+
+  const handleLessonClick = (lesson) => {
+    if (!isUnlocked && !isLessonFree(lesson.id)) {
+      setSelectedLockedLesson(lesson);
+      setShowSubscriptionModal(true);
+      return;
+    }
+    setSelectedLessonId(lesson.id);
+  };
+
+  const handleLoadPersonalProject = ({ blockXml, code: loadedCode, projectName: loadedProjName }) => {
+    if (workspace && blockXml) {
+      try {
+        workspace.clear();
+        const dom = Blockly.utils.xml.textToDom(blockXml);
+        Blockly.Xml.domToWorkspace(dom, workspace);
+      } catch (e) {
+        console.error('Error loading workspace from XML:', e);
+      }
+    }
+    if (loadedCode) {
+      setGeneratedCode(loadedCode);
+    }
+    if (loadedProjName) {
+      setFilename(loadedProjName.endsWith('.ino') ? loadedProjName : `${loadedProjName}.ino`);
+    }
+    setSaveNotification('🎉 הפרויקט נטען בהצלחה ללוח העבודה!');
+    setTimeout(() => setSaveNotification(''), 4000);
+  };
 
   const handleSaveCode = () => {
     if (workspace) {
@@ -805,14 +858,6 @@ function RobotSmall() {
         {/* TOP WORKSPACE TOOLBAR */}
         <div style={{ padding: '10px 18px', background: '#ffffff', borderBottom: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button 
-              onClick={handleSaveCode} 
-              className="builder-btn" 
-              style={{ background: isCodeSaved ? '#16a34a' : '#22c55e', color: '#ffffff', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: isCodeSaved ? '0 0 10px rgba(22,163,74,0.5)' : 'none' }}
-            >
-              {isCodeSaved ? '✅ הקוד שמור' : '💾 שמור קוד פרויקט'}
-            </button>
-
             <button onClick={() => { 
               handleSaveCode();
               setFlashingMode('flash'); 
@@ -820,39 +865,203 @@ function RobotSmall() {
             }} className="builder-btn builder-btn-hero" style={{ background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)' }}>
               🚀 צרוב ל-SuperBot / ESP32
             </button>
-            <button onClick={() => { 
-              handleSaveCode();
-              setFlashingMode('compile'); 
-              setShowFlashingModal(true); 
-            }} className="builder-btn">
-              ⚙️ קמפל קוד
-            </button>
-            <a 
-              href="/SmartStart_Agent.bat" 
-              download="SmartStart_Agent.bat"
+
+            <button 
+              type="button"
+              onClick={() => setShowSendEmailModal(true)} 
               className="builder-btn" 
-              style={{ background: '#ecfdf5', color: '#047857', borderColor: '#a7f3d0', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-              title="הורד והפעל מאיץ צריבה מהיר למחשב"
+              style={{ background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)', color: '#ffffff', borderColor: '#2563eb', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 10px rgba(37,99,235,0.35)' }}
             >
-              📥 מאיץ צריבה למחשב
-            </a>
+              📤 שלח קוד למורה
+            </button>
+
+            {/* 📁 DROPDOWN ACTIONS MENU */}
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                onClick={() => setShowActionsDropdown(!showActionsDropdown)}
+                className="builder-btn"
+                style={{
+                  background: '#f8fafc',
+                  border: '1.5px solid #cbd5e1',
+                  color: '#1e293b',
+                  fontWeight: '700',
+                  padding: '7px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                ⚙️ פעולות נוספות ▾
+              </button>
+
+              {showActionsDropdown && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '110%',
+                    right: 0,
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '14px',
+                    boxShadow: '0 12px 35px rgba(0,0,0,0.15)',
+                    minWidth: '220px',
+                    zIndex: 9999,
+                    padding: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}
+                  onMouseLeave={() => setShowActionsDropdown(false)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSavedProjectModalTab('save');
+                      setShowSavedProjectModal(true);
+                      setShowActionsDropdown(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '9px 12px',
+                      textAlign: 'right',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.88rem',
+                      fontWeight: '700',
+                      color: '#0f172a',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#eff6ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    💾 שמור פרויקט בענן
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSavedProjectModalTab('load');
+                      setShowSavedProjectModal(true);
+                      setShowActionsDropdown(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '9px 12px',
+                      textAlign: 'right',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.88rem',
+                      fontWeight: '700',
+                      color: '#0f172a',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#eff6ff'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📂 פתח פרויקטים שמורים
+                  </button>
+
+                  <div style={{ height: '1px', background: '#e2e8f0', margin: '4px 0' }} />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveCode();
+                      setFlashingMode('compile');
+                      setShowFlashingModal(true);
+                      setShowActionsDropdown(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '9px 12px',
+                      textAlign: 'right',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.88rem',
+                      fontWeight: '600',
+                      color: '#334155',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    ⚙️ קמפל קוד
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDownloadCode();
+                      setShowActionsDropdown(false);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '9px 12px',
+                      textAlign: 'right',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.88rem',
+                      fontWeight: '600',
+                      color: '#334155',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📄 הורד קוד (.ino)
+                  </button>
+
+                  <a
+                    href="/SmartStart_Agent.bat"
+                    download="SmartStart_Agent.bat"
+                    onClick={() => setShowActionsDropdown(false)}
+                    style={{
+                      textDecoration: 'none',
+                      padding: '9px 12px',
+                      textAlign: 'right',
+                      borderRadius: '8px',
+                      fontSize: '0.88rem',
+                      fontWeight: '600',
+                      color: '#047857',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#ecfdf5'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📥 מאיץ צריבה למחשב
+                  </a>
+                </div>
+              )}
+            </div>
 
             {saveNotification && (
               <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#15803d', background: '#f0fdf4', padding: '4px 10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
                 {saveNotification}
               </span>
             )}
-            <button onClick={handleDownloadCode} className="builder-btn">
-              📄 הורד קוד (.ino)
-            </button>
-            <button 
-              type="button"
-              onClick={() => setShowSendEmailModal(true)} 
-              className="builder-btn" 
-              style={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', color: '#ffffff', borderColor: '#128C7E', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 10px rgba(37,211,102,0.35)' }}
-            >
-              💬 שלח קוד ב-WhatsApp
-            </button>
+
             <button onClick={() => setIsEditorVisible(!isEditorVisible)} className="builder-btn" style={{ background: '#f8fafc' }}>
               👁️ {isEditorVisible ? 'הסתר קוד' : 'הצג קוד בלייב'}
             </button>
@@ -881,10 +1090,6 @@ function RobotSmall() {
                 <option value="uno">🤖 Arduino Uno</option>
               </select>
             </div>
-
-            <button onClick={() => window.close()} className="builder-btn">
-              📖 חזרה לשיעורים
-            </button>
           </div>
         </div>
 
@@ -1029,12 +1234,27 @@ function RobotSmall() {
             code={generatedCode || SUPERBOT_INO_FULL_CODE}
           />
 
-          {/* 📧 SEND CODE TO EMAIL MODAL (FOR STANDALONE WINDOW) */}
+          {/* 📧 SEND CODE TO EMAIL / TEACHER MODAL (FOR STANDALONE WINDOW) */}
           <SendCodeModal 
             isOpen={showSendEmailModal}
             onClose={() => setShowSendEmailModal(false)}
             filename={filename}
+            projectName="🤖 רובוט צב חכם"
+            projectType="turtle"
+            blockXml={workspace ? (() => { try { return Blockly.Xml.domToPrettyText(Blockly.Xml.workspaceToDom(workspace)); } catch(e){ return ''; } })() : ''}
             code={generatedCode || SUPERBOT_INO_FULL_CODE}
+          />
+
+          {/* 🔒 PERSONAL SAVED PROJECT MODAL */}
+          <SavedProjectModal
+            isOpen={showSavedProjectModal}
+            onClose={() => setShowSavedProjectModal(false)}
+            initialTab={savedProjectModalTab}
+            projectType="turtle"
+            defaultProjectName="רובוט צב חכם"
+            currentBlockXml={workspace ? (() => { try { return Blockly.Xml.domToPrettyText(Blockly.Xml.workspaceToDom(workspace)); } catch(e){ return ''; } })() : ''}
+            currentCode={generatedCode || SUPERBOT_INO_FULL_CODE}
+            onLoadProject={handleLoadPersonalProject}
           />
 
         </div>
@@ -1047,36 +1267,78 @@ function RobotSmall() {
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8fafc', direction: 'rtl', overflow: 'hidden', position: 'relative' }}>
       
       {/* 🌟 TOP STUDIO NAVBAR */}
-      <div className="builder-header-toolbar" style={{ padding: '12px 24px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-        <div className="builder-brand-group">
-          <Link to="/" className="builder-btn" style={{ textDecoration: 'none', background: '#f8fafc' }}>
-            🏠 דף הבית
-          </Link>
-          <div style={{ marginRight: '16px', display: 'flex', flexDirection: 'column' }}>
-            <span className="builder-brand-title" style={{ fontSize: '1.15rem' }}>
-              🤖 רובוט חכם (SuperBot Smart Robot)
-            </span>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-              ספריית SuperBot C++ | {currentChapter.title} - {currentLesson.title}
+      {/* 🌟 TOP STUDIO NAVBAR (ONLY SHOWN FOR IN-DEPTH LESSONS, HIDDEN ON WELCOME LANDING) */}
+      {!currentLesson.isWelcomePage && (
+        <div className="builder-header-toolbar" style={{ padding: '12px 24px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+          <div className="builder-brand-group">
+            <Link to="/" className="builder-btn" style={{ textDecoration: 'none', background: '#f8fafc' }}>
+              🏠 דף הבית
+            </Link>
+            <div style={{ marginRight: '16px', display: 'flex', flexDirection: 'column' }}>
+              <span className="builder-brand-title" style={{ fontSize: '1.15rem' }}>
+                🤖 רובוט חכם (SuperBot Smart Robot)
+              </span>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                ספריית SuperBot C++ | {currentChapter.title} - {currentLesson.title}
+              </span>
+            </div>
+          </div>
+
+          {/* Action Controls */}
+          <div className="builder-controls-wrapper" style={{ gap: '10px' }}>
+            <button 
+              onClick={() => setShowAIModal(true)}
+              className="builder-btn builder-btn-hero"
+              style={{ background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)', color: '#ffffff', border: 'none', fontWeight: '800' }}
+            >
+              ✨ מחולל AI לבלוקים
+            </button>
+
+            <span className="builder-btn builder-btn-hero" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5' }}>
+              📚 תוכנית הלימודים והשיעורים (SuperBot)
             </span>
           </div>
         </div>
+      )}
 
-        {/* Action Controls */}
-        <div className="builder-controls-wrapper" style={{ gap: '10px' }}>
-          <button 
-            onClick={() => setShowAIModal(true)}
-            className="builder-btn builder-btn-hero"
-            style={{ background: 'linear-gradient(135deg, #FF9900 0%, #FF5500 100%)', color: '#ffffff', border: 'none', fontWeight: '800' }}
-          >
-            ✨ מחולל AI לבלוקים
-          </button>
-
-          <span className="builder-btn builder-btn-hero" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #ffedd5' }}>
-            📚 תוכנית הלימודים והשיעורים (SuperBot)
-          </span>
-        </div>
-      </div>
+      {/* 🔙 TOP-LEFT CLEAN BACK BUTTON (FOR WELCOME LANDING ONLY) */}
+      {currentLesson.isWelcomePage && (
+        <button
+          onClick={handleGoBack}
+          style={{
+            position: 'fixed',
+            top: '24px',
+            left: '24px',
+            zIndex: 9999,
+            padding: '12px 24px',
+            borderRadius: '16px',
+            background: 'rgba(255, 255, 255, 0.15)',
+            border: '1.5px solid rgba(255, 255, 255, 0.3)',
+            color: '#ffffff',
+            fontSize: '1rem',
+            fontWeight: '800',
+            cursor: 'pointer',
+            backdropFilter: 'blur(16px)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
+            transition: 'all 0.25s ease',
+            fontFamily: "'Rubik', sans-serif"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+          }}
+        >
+          <span style={{ fontSize: '1.2rem', lineHeight: '1' }}>←</span>
+          <span>חזרה</span>
+        </button>
+      )}
 
       {/* MAIN LAYOUT */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -1184,28 +1446,68 @@ function RobotSmall() {
                       </button>
                     </div>
 
-                    {/* HERO PROTOTYPE SHOWCASE CARD */}
-                    <div style={{ background: 'rgba(15, 23, 42, 0.65)', border: '2px solid rgba(251, 146, 60, 0.3)', borderRadius: '28px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.85rem', color: '#fdba74', fontWeight: '800', marginBottom: '12px' }}>
+                    {/* HERO PROTOTYPE SHOWCASE CARD (CLEAN WHITE BG & CONTAINED PROTOTYPE) */}
+                    <div style={{
+                      background: '#ffffff',
+                      border: '2.5px solid rgba(254, 215, 170, 0.9)',
+                      borderRadius: '28px',
+                      overflow: 'hidden',
+                      boxShadow: '0 25px 65px rgba(0,0,0,0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      height: '370px',
+                      padding: '24px 20px',
+                      boxSizing: 'border-box'
+                    }}>
+                      <div style={{
+                        position: 'absolute',
+                        top: '16px',
+                        right: '16px',
+                        zIndex: 3,
+                        background: 'rgba(15, 23, 42, 0.88)',
+                        border: '1px solid rgba(251, 146, 60, 0.4)',
+                        padding: '6px 14px',
+                        borderRadius: '12px',
+                        fontSize: '0.82rem',
+                        color: '#fed7aa',
+                        fontWeight: '800',
+                        backdropFilter: 'blur(10px)',
+                        fontFamily: 'inherit',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                      }}>
                         📸 דגם מוגמר סופי - Smart Turtle Robot V3.0
-                      </span>
-                      <div style={{ width: '100%', height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: '20px', padding: '16px' }}>
-                        <img 
-                          src={TURTLE_HERO} 
-                          alt="Smart Turtle Robot Prototype"
-                          style={{ maxWidth: '100%', maxHeight: '290px', objectFit: 'contain' }}
-                        />
                       </div>
+                      <img 
+                        src={TURTLE_HERO} 
+                        alt="Smart Turtle Robot Prototype"
+                        style={{
+                          maxWidth: '88%',
+                          maxHeight: '88%',
+                          objectFit: 'contain',
+                          objectPosition: 'center',
+                          display: 'block'
+                        }}
+                      />
                     </div>
                   </div>
 
                   {/* 4 CYBER EXPERIENCE CARDS */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
                     {currentLesson.features.map((feat, idx) => (
-                      <div key={idx} style={{ background: 'rgba(15, 23, 42, 0.55)', border: '1.5px solid rgba(255, 255, 255, 0.1)', borderRadius: '22px', padding: '24px', backdropFilter: 'blur(16px)', textAlign: 'right' }}>
+                      <div key={idx} style={{
+                        background: 'rgba(15, 23, 42, 0.55)',
+                        border: '1.5px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '22px',
+                        padding: '24px',
+                        backdropFilter: 'blur(16px)',
+                        textAlign: 'right',
+                        fontFamily: 'inherit'
+                      }}>
                         <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>{feat.icon}</div>
-                        <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', margin: '0 0 8px 0' }}>{feat.title}</h4>
-                        <p style={{ fontSize: '0.95rem', color: '#94a3b8', margin: 0, lineHeight: '1.6' }}>{feat.desc}</p>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', margin: '0 0 8px 0', fontFamily: 'inherit' }}>{feat.title}</h4>
+                        <p style={{ fontSize: '0.95rem', color: '#cbd5e1', margin: 0, lineHeight: '1.6', fontFamily: 'inherit' }}>{feat.desc}</p>
                       </div>
                     ))}
                   </div>
@@ -1524,12 +1826,44 @@ function RobotSmall() {
         code={generatedCode || SUPERBOT_INO_FULL_CODE}
       />
 
-      {/* 📧 SEND CODE TO EMAIL MODAL */}
+      {/* 📧 SEND CODE TO EMAIL / TEACHER MODAL */}
       <SendCodeModal 
         isOpen={showSendEmailModal}
         onClose={() => setShowSendEmailModal(false)}
         filename={filename}
+        projectName="🤖 רובוט צב חכם"
+        projectType="turtle"
+        blockXml={workspace ? (() => { try { return Blockly.Xml.domToPrettyText(Blockly.Xml.workspaceToDom(workspace)); } catch(e){ return ''; } })() : ''}
         code={generatedCode || SUPERBOT_INO_FULL_CODE}
+      />
+
+      {/* 🔒 PERSONAL SAVED PROJECT MODAL */}
+      <SavedProjectModal
+        isOpen={showSavedProjectModal}
+        onClose={() => setShowSavedProjectModal(false)}
+        initialTab={savedProjectModalTab}
+        projectType="turtle"
+        defaultProjectName="רובוט צב חכם"
+        currentBlockXml={workspace ? (() => { try { return Blockly.Xml.domToPrettyText(Blockly.Xml.workspaceToDom(workspace)); } catch(e){ return ''; } })() : ''}
+        currentCode={generatedCode || SUPERBOT_INO_FULL_CODE}
+        onLoadProject={handleLoadPersonalProject}
+      />
+
+      {/* 🔑 SUBSCRIPTION & CLASS ACCESS CODE MODAL */}
+      <SubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={() => {
+          setShowSubscriptionModal(false);
+          setSelectedLockedLesson(null);
+        }}
+        projectType="turtle"
+        lessonTitle={selectedLockedLesson ? selectedLockedLesson.title : ''}
+        onUnlockSuccess={(license) => {
+          setIsUnlocked(true);
+          if (selectedLockedLesson) {
+            setSelectedLessonId(selectedLockedLesson.id);
+          }
+        }}
       />
 
     </div>

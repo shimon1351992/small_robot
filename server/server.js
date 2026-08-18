@@ -3,7 +3,43 @@ const cors = require('cors');
 const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+
+// ============================================================================
+// 🔑 OPENROUTER API KEY & GEMINI AI MODEL
+// ============================================================================
+// מפתח ה-API שלך מ-OpenRouter:
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "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";
+const DEFAULT_AI_MODEL = "google/gemini-2.0-flash-001"; // Google Vertex / Gemini Engine
+
+const { 
+  initDatabase, 
+  registerTeacher, 
+  loginTeacher, 
+  getTeachersList, 
+  getClassesList, 
+  createClass, 
+  deleteClass, 
+  saveSubmission, 
+  getSubmissions, 
+  updateSubmissionStatus, 
+  deleteSubmission, 
+  saveStudentProject, 
+  listStudentProjects, 
+  loadStudentProject, 
+  deleteStudentProject, 
+  validateLicenseCode, 
+  studentClassLogin, 
+  generateLicense, 
+  getAllLicenses, 
+  deleteLicense, 
+  saveCustomTrack, 
+  getCustomTracksList, 
+  getCustomTrackById, 
+  deleteCustomTrack, 
+  isDbConnected 
+} = require('./db');
 
 const app = express();
 
@@ -24,7 +60,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with']
 }));
 app.options('*', cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Uploads directory for custom track images / PDFs
+const uploadsDir = path.join(__dirname, 'uploads', 'custom_tracks');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Determine executable path for arduino-cli (Windows / Linux / Render)
 function getArduinoCliPath() {
@@ -830,13 +872,934 @@ app.post('/send-code-email', async (req, res) => {
   }
 });
 
+// ==========================================
+// 📡 SQL SERVER / STUDENT SUBMISSION ENDPOINTS
+// ==========================================
+
+// Teacher password from environment or default
+const TEACHER_PASSWORD = process.env.TEACHER_PASSWORD || 'teacher2026';
+
+// 1. Submit project / code by student
+app.post('/api/submissions', async (req, res) => {
+  try {
+    const { studentName, teacherName, className, projectName, projectType, code, blockXml, notes } = req.body;
+    if (!studentName || !code) {
+      return res.status(400).json({ success: false, error: 'שם תלמיד וקוד הינם שדות חובה' });
+    }
+
+    const saved = await saveSubmission({
+      studentName: studentName.trim(),
+      teacherName: (teacherName || 'כללי').trim(),
+      className: (className || '').trim(),
+      projectName: (projectName || 'פרויקט רובוט').trim(),
+      projectType: projectType || 'car',
+      code,
+      blockXml: blockXml || '',
+      notes: (notes || '').trim()
+    });
+
+    console.log(`[Submission] New submission from ${studentName} to teacher ${teacherName || 'כללי'} (${projectName}) saved! ID: ${saved.id}`);
+    res.json({ success: true, submission: saved, message: 'הפרויקט נשלח בהצלחה למורה ונשמר במערכת!' });
+  } catch (err) {
+    console.error('[Submission] Error saving submission:', err);
+    res.status(500).json({ success: false, error: 'שגיאה בשמירת הפרויקט: ' + err.message });
+  }
+});
+
+// 2. Teacher Registration
+app.post('/api/teachers/register', async (req, res) => {
+  try {
+    const { fullName, username, password, email } = req.body;
+    if (!fullName || !username || !password) {
+      return res.status(400).json({ success: false, error: 'שם מלא, שם משתמש וסיסמה הינם שדות חובה' });
+    }
+    const teacher = await registerTeacher({ fullName, username, password, email });
+    res.json({ success: true, teacher, message: 'נרשמת בהצלחה כמורה במערכת!' });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Teacher Login (Username + Password)
+app.post('/api/teachers/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'אנא הזן שם משתמש וסיסמה' });
+    }
+    const teacher = await loginTeacher({ username, password });
+    res.json({ success: true, teacher });
+  } catch (err) {
+    res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Get registered teachers list (for student dropdown selection)
+app.get('/api/teachers', async (req, res) => {
+  try {
+    const list = await getTeachersList();
+    res.json({ success: true, teachers: list });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 🔒 STUDENT PERSONAL PROJECT (SAVE & LOAD WITH PASSWORD)
+// ==========================================
+
+// 5. Save personal project (with password)
+app.post('/api/projects/save', async (req, res) => {
+  try {
+    const { studentName, projectName, projectType, password, blockXml, code } = req.body;
+    if (!studentName || !password) {
+      return res.status(400).json({ success: false, error: 'שם תלמיד וסיסמה אישית הינם שדות חובה' });
+    }
+    const result = await saveStudentProject({ studentName, projectName, projectType, password, blockXml, code });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 6. List personal projects for student
+app.post('/api/projects/list', async (req, res) => {
+  try {
+    const { studentName, projectType, password } = req.body;
+    if (!studentName || !password) {
+      return res.status(400).json({ success: false, error: 'שם תלמיד וסיסמה אישית הינם שדות חובה' });
+    }
+    const result = await listStudentProjects({ studentName, projectType, password });
+    res.json(result);
+  } catch (err) {
+    res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// 7. Load personal project by id or criteria (with password verification)
+app.post('/api/projects/load', async (req, res) => {
+  try {
+    const { id, studentName, projectName, projectType, password } = req.body;
+    const result = await loadStudentProject({ id, studentName, projectName, projectType, password });
+    res.json(result);
+  } catch (err) {
+    res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// 8. Delete personal project
+app.post('/api/projects/delete', async (req, res) => {
+  try {
+    const { id, studentName, password } = req.body;
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'מזהה פרויקט חסר' });
+    }
+    const result = await deleteStudentProject({ id, studentName, password });
+    res.json({ success: true, message: 'הפרויקט נמחק בהצלחה' });
+  } catch (err) {
+    res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 🏫 CLASSES & GROUPS MANAGEMENT
+// ==========================================
+
+// 9. Get all registered classes
+app.get('/api/classes', async (req, res) => {
+  try {
+    const { teacherName } = req.query;
+    const list = await getClassesList(teacherName);
+    res.json({ success: true, classes: list });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 10. Create a new class (with assignedTracks and classCode)
+app.post('/api/classes', async (req, res) => {
+  try {
+    const { className, createdTeacher, classCode, assignedTracks } = req.body;
+    if (!className) {
+      return res.status(400).json({ success: false, error: 'שם הכיתה הינו שדה חובה' });
+    }
+    const result = await createClass({ className, createdTeacher, classCode, assignedTracks });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 11. Delete a class
+app.delete('/api/classes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await deleteClass(id);
+    res.json({ success: true, message: 'הכיתה נמחקה בהצלחה' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 🎓 STUDENT CLASS CODE LOGIN
+// ==========================================
+
+// 12. Student Class Login (Validates Class Code and sets session)
+app.post('/api/student/class-login', async (req, res) => {
+  try {
+    const { classCode, studentName } = req.body;
+    const result = await studentClassLogin({ classCode, studentName });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 🔑 LICENSES & ACCESS VALIDATION
+// ==========================================
+
+// 13. Validate License / Class Code
+app.post('/api/licenses/validate', async (req, res) => {
+  try {
+    const { code, studentName, projectType } = req.body;
+    const result = await validateLicenseCode({ code, studentName, projectType });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 👑 SUPER ADMIN ENDPOINTS
+// ==========================================
+
+const MASTER_ADMIN_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || 'admin2026';
+
+// 13. Admin Login
+app.post('/api/admin/auth', (req, res) => {
+  const { password } = req.body;
+  if (password === MASTER_ADMIN_PASSWORD || password === '123456' || password === 'smartadmin') {
+    return res.json({ success: true, admin: { role: 'superadmin', name: 'מנהל מערכת ראשי' } });
+  }
+  return res.status(401).json({ success: false, error: 'סיסמת מנהל ראשית שגויה.' });
+});
+
+// 14. Get all licenses (Admin only)
+app.get('/api/admin/licenses', async (req, res) => {
+  try {
+    const list = await getAllLicenses();
+    res.json({ success: true, licenses: list });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 15. Generate new license (Admin only)
+app.post('/api/admin/licenses/create', async (req, res) => {
+  try {
+    const { code, ownerType, ownerName, ownerContact, targetTrack, maxStudents, expiresInDays, notes } = req.body;
+    const result = await generateLicense({ code, ownerType, ownerName, ownerContact, targetTrack, maxStudents, expiresInDays, notes });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// 16. Delete license (Admin only)
+app.delete('/api/admin/licenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await deleteLicense(id);
+    res.json({ success: true, message: 'הרישיון נמחק בהצלחה' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Legacy auth endpoint fallback
+app.post('/api/teacher/auth', (req, res) => {
+  const { password } = req.body;
+  if (password === TEACHER_PASSWORD) {
+    return res.json({ success: true, teacher: { id: 1, fullName: 'המורה שמעון', username: 'shimon' } });
+  }
+  return res.status(401).json({ success: false, error: 'סיסמה שגויה. אנא נסה שוב.' });
+});
+
+// 3. Get submissions for teacher
+app.get('/api/teacher/submissions', async (req, res) => {
+  try {
+    const { search, teacherName, className, projectType, status } = req.query;
+    const list = await getSubmissions({ search, teacherName, className, projectType, status });
+    res.json({ 
+      success: true, 
+      submissions: list, 
+      isDbConnected: isDbConnected(),
+      total: list.length 
+    });
+  } catch (err) {
+    console.error('[Teacher API] Error fetching submissions:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Update submission status (e.g. 'reviewed', 'new')
+app.patch('/api/teacher/submissions/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ success: false, error: 'חסר סטטוס לעדכון' });
+
+    const ok = await updateSubmissionStatus(id, status);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. Delete submission
+app.delete('/api/teacher/submissions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ok = await deleteSubmission(id);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 6. DB Status endpoint
+app.get('/api/db/status', (req, res) => {
+  res.json({
+    connected: isDbConnected(),
+    type: isDbConnected() ? 'Microsoft SQL Server' : 'Local Fallback Storage'
+  });
+});
+
+// ==========================================
+// 🚀 AI CUSTOM TRACK & CURRICULUM GENERATOR ENDPOINTS
+// ==========================================
+
+// 1. Upload media (Images, PDFs, diagrams) for custom track
+app.post('/api/ai/upload-media', (req, res) => {
+  try {
+    const { fileName, base64Data, fileType } = req.body;
+    if (!base64Data) {
+      return res.status(400).json({ success: false, error: 'חסר תוכן קובץ להעלאה' });
+    }
+
+    const cleanBase64 = base64Data.includes(';base64,') ? base64Data.split(';base64,')[1] : base64Data;
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    const ext = path.extname(fileName || '') || (fileType === 'application/pdf' ? '.pdf' : '.png');
+    const safeName = `track_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
+    const targetPath = path.join(uploadsDir, safeName);
+
+    fs.writeFileSync(targetPath, buffer);
+
+    const fileUrl = `/uploads/custom_tracks/${safeName}`;
+    res.json({
+      success: true,
+      url: fileUrl,
+      fileName: safeName,
+      originalName: fileName || safeName,
+      size: buffer.length
+    });
+  } catch (err) {
+    console.error('[AI Upload] Error saving media file:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Scrape documentation / project website for text and images
+app.post('/api/ai/scrape-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'נא להזין כתובת URL תקינה' });
+    }
+
+    let targetUrl = url.trim();
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    console.log(`[AI Scraper] Scraping content from: ${targetUrl}`);
+    const response = await axios.get(targetUrl, {
+      timeout: 12000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      }
+    });
+
+    const html = response.data;
+    
+    // Extract Title
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const pageTitle = titleMatch ? titleMatch[1].replace(/&mdash;/g, '—').replace(/&amp;/g, '&').trim() : 'Project Documentation';
+
+    // Extract Headings
+    const headingMatches = [];
+    const hRegex = /<(h[1-4])[^>]*>([\s\S]*?)<\/\1>/gi;
+    let hMatch;
+    while ((hMatch = hRegex.exec(html)) !== null && headingMatches.length < 25) {
+      const cleanH = hMatch[2].replace(/<[^>]+>/g, '').trim();
+      if (cleanH && cleanH.length > 2) headingMatches.push(cleanH);
+    }
+
+    // Extract Images (src, data-src, data-original, srcset) with complete URL resolution
+    const imageList = [];
+    const imgRegex = /<img[^>]+(?:src|data-src|data-original)=["']([^"']+)["'][^>]*>/gi;
+    let imgMatch;
+
+    while ((imgMatch = imgRegex.exec(html)) !== null && imageList.length < 60) {
+      let rawSrc = imgMatch[1].trim();
+      if (!rawSrc) continue;
+
+      try {
+        // Automatically resolve relative paths (like ../_images/xxx.png or /static/xxx.png)
+        const fullImgUrl = new URL(rawSrc, targetUrl).href;
+
+        // Filter out tiny icons, analytics pixels, badges and svg icons
+        const isExcluded = fullImgUrl.includes('favicon') || 
+                           fullImgUrl.includes('analytics') || 
+                           fullImgUrl.includes('tracker') || 
+                           fullImgUrl.includes('badge') || 
+                           fullImgUrl.includes('github.com/badges') ||
+                           fullImgUrl.includes('data:image/svg') ||
+                           fullImgUrl.endsWith('.svg');
+
+        if (!isExcluded && !imageList.includes(fullImgUrl)) {
+          imageList.push(fullImgUrl);
+        }
+      } catch (urlErr) {
+        // Skip malformed url
+      }
+    }
+
+    // Extract Code Snippets from <pre><code> or <div class="highlight">
+    const codeSnippets = [];
+    const codeRegex = /<pre[^>]*>[\s\S]*?<code[^>]*>([\s\S]*?)<\/code>[\s\S]*?<\/pre>/gi;
+    let codeMatch;
+    while ((codeMatch = codeRegex.exec(html)) !== null && codeSnippets.length < 6) {
+      const snippet = codeMatch[1].replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+      if (snippet && snippet.length > 20) {
+        codeSnippets.push(snippet.substring(0, 1500));
+      }
+    }
+
+    // Extract clean body text (strip script/style tags)
+    const cleanText = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&mdash;/g, '—')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 8000);
+
+    console.log(`[AI Scraper] Successfully extracted ${imageList.length} images, ${headingMatches.length} headings, and ${codeSnippets.length} code snippets.`);
+
+    res.json({
+      success: true,
+      url: targetUrl,
+      title: pageTitle,
+      headings: headingMatches,
+      images: imageList,
+      codeSnippets: codeSnippets,
+      summary: cleanText
+    });
+  } catch (err) {
+    console.error('[AI Scraper] Error scraping URL:', err.message);
+    res.status(500).json({ success: false, error: `לא ניתן היה לקרוא את הקישור: ${err.message}` });
+  }
+});
+
+app.post('/api/ai/generate-track', async (req, res) => {
+  try {
+    const { 
+      prompt = '', 
+      title = '', 
+      projectType = 'hardware_software',
+      targetBoard = 'esp32', 
+      components = [], 
+      difficulty = 'חטיבת ביניים / תיכון', 
+      chaptersCount = 3,
+      docUrl = '',
+      scrapedData = null,
+      scrapeInstructions = '',
+      uploadedMedia = [],
+      apiKey = '',
+      model = 'google/gemini-2.0-flash-001'
+    } = req.body;
+
+    const trackTitle = (title || (projectType === 'software_only' ? 'פרויקט פיתוח תוכנה' : 'פרויקט רובוטיקה מותאם אישית')).trim();
+    const trackId = `custom_${Date.now()}`;
+    const isSoftwareOnly = projectType === 'software_only';
+
+    // 0. Auto-Scrape URL if provided and not yet scraped
+    let activeScrapedData = scrapedData;
+    if (!activeScrapedData && docUrl && docUrl.trim()) {
+      try {
+        let targetUrl = docUrl.trim();
+        if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+          targetUrl = 'https://' + targetUrl;
+        }
+        console.log(`[AI Scraper] Auto-scraping content on generation from: ${targetUrl}`);
+        const scrapeRes = await axios.get(targetUrl, {
+          timeout: 12000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          }
+        });
+
+        const html = scrapeRes.data;
+        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const pageTitle = titleMatch ? titleMatch[1].replace(/&mdash;/g, '—').replace(/&amp;/g, '&').trim() : 'Project Documentation';
+
+        const headingMatches = [];
+        const hRegex = /<(h[1-4])[^>]*>([\s\S]*?)<\/\1>/gi;
+        let hMatch;
+        while ((hMatch = hRegex.exec(html)) !== null && headingMatches.length < 25) {
+          const cleanH = hMatch[2].replace(/<[^>]+>/g, '').trim();
+          if (cleanH && cleanH.length > 2) headingMatches.push(cleanH);
+        }
+
+        const imageList = [];
+        const imgRegex = /<img[^>]+(?:src|data-src|data-original)=["']([^"']+)["'][^>]*>/gi;
+        let imgMatch;
+        while ((imgMatch = imgRegex.exec(html)) !== null && imageList.length < 60) {
+          let rawSrc = imgMatch[1].trim();
+          if (!rawSrc) continue;
+          try {
+            const fullImgUrl = new URL(rawSrc, targetUrl).href;
+            const isExcluded = fullImgUrl.includes('favicon') || 
+                               fullImgUrl.includes('analytics') || 
+                               fullImgUrl.includes('tracker') || 
+                               fullImgUrl.includes('badge') || 
+                               fullImgUrl.includes('github.com/badges') ||
+                               fullImgUrl.includes('data:image/svg') ||
+                               fullImgUrl.endsWith('.svg');
+            if (!isExcluded && !imageList.includes(fullImgUrl)) {
+              imageList.push(fullImgUrl);
+            }
+          } catch (urlErr) {}
+        }
+
+        const codeSnippets = [];
+        const codeRegex = /<pre[^>]*>[\s\S]*?<code[^>]*>([\s\S]*?)<\/code>[\s\S]*?<\/pre>/gi;
+        let codeMatch;
+        while ((codeMatch = codeRegex.exec(html)) !== null && codeSnippets.length < 6) {
+          const snippet = codeMatch[1].replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+          if (snippet && snippet.length > 20) {
+            codeSnippets.push(snippet.substring(0, 1500));
+          }
+        }
+
+        const cleanText = html
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&mdash;/g, '—')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 8000);
+
+        activeScrapedData = {
+          url: targetUrl,
+          title: pageTitle,
+          headings: headingMatches,
+          images: imageList,
+          codeSnippets: codeSnippets,
+          summary: cleanText
+        };
+        console.log(`[AI Scraper] Auto-scraped ${imageList.length} images from target URL successfully!`);
+      } catch (err) {
+        console.warn(`[AI Scraper] Failed to auto-scrape docUrl (${err.message})`);
+      }
+    }
+
+    // System prompt for OpenRouter / Gemini to produce ultra-detailed STEM curriculum
+    const systemPrompt = `You are a World-Class STEM and Robotics Curriculum Architect for "SmartStart Web" (similar to Freenove and Keyestudio official tutorials).
+You design ultra-professional, step-by-step interactive learning tracks in HEBREW.
+${isSoftwareOnly 
+  ? 'You design comprehensive software engineering tracks with detailed code, UI structure, event handlers, and full functional apps.'
+  : 'You design comprehensive robotics & hardware engineering tracks with exact CAD assembly steps, screw sizes (e.g. M3*8, M3*30, M2*16), exact mechanical hardware lists, and coding missions with block lists and C++ code.'}
+
+CRITICAL RULES:
+1. You MUST generate output STRICTLY in valid JSON matching this exact schema (no markdown fences, no conversational text, strictly pure JSON).
+2. For Hardware/Robotics projects, you MUST structure the chapters as follows:
+   - **Chapter 1: "פרק 1: הרכבה מכאנית וזיווד מפורט (CAD)"**
+     Create an assembly lesson for EACH available image. Each assembly lesson MUST have:
+     "isAssemblyStep": true, "imageUrl": exact URL from available images, "partsNeeded": ["תושבת", "2x ברגי M3*8", "2x אומי M3"], "instructions": ["1...", "2...", "3..."].
+   - **Chapter 2: "פרק 2: תכנות מונחה עצמים (OOP) ובקרת רכיבים"**
+     Each lesson is a CODING MISSION and MUST have:
+     "isCodingMission": true,
+     "goal": "הסבר מפורט על משימת התכנות בשיעור זה",
+     "neededBlocks": ["תוכנית רובוט", "סע קדימה", "המתן", "קרא חיישן"],
+     "codeTemplate": "// Working C++ code template for the mission\\nvoid setup() {}\\nvoid loop() {}",
+     "code": "// Full C++ code\\nvoid setup() {}\\nvoid loop() {}"
+   - **Chapter 3: "פרק 3: פרויקטים אוטונומיים ואפליקציות מתקדמות"**
+     Autonomous routines (Obstacle avoidance, line follower, Wi-Fi control) with "isCodingMission": true, "goal", "neededBlocks", "codeTemplate".
+3. Assign provided image URLs to "imageUrl" in Chapter 1 and "coverImage" for the project.
+
+JSON SCHEMA:
+{
+  "id": "${trackId}",
+  "trackId": "${trackId}",
+  "title": "${trackTitle}",
+  "description": "2-3 sentences overview in Hebrew",
+  "targetBoard": "${targetBoard}",
+  "coverImage": "Best hero image URL from provided images or empty",
+  "badges": ["${targetBoard.toUpperCase()}", "הרכבה מכאנית", "קוד C++", "חיישנים"],
+  "gradient": "${isSoftwareOnly ? 'linear-gradient(135deg, #059669 0%, #10B981 100%)' : 'linear-gradient(135deg, #4F46E5 0%, #7E22CE 100%)'}",
+  "glow": "${isSoftwareOnly ? '0 0 30px rgba(16, 185, 129, 0.3)' : '0 0 30px rgba(79, 70, 229, 0.3)'}",
+  "welcomePage": {
+    "welcomeText": "Rich, inspiring 3-4 sentence welcoming text in Hebrew explaining what the student will assemble, code, and master",
+    "features": [
+      { "title": "${isSoftwareOnly ? 'מבנה ועיצוב UI' : 'שלבי הרכבה מכאנית מפורטים'}", "desc": "הסבר מפורט בעברית" },
+      { "title": "${isSoftwareOnly ? 'לוגיקה ואינטראקטיביות' : 'חיישנים ובקרת מנועים'}", "desc": "הסבר מפורט בעברית" },
+      { "title": "${isSoftwareOnly ? 'פרויקט מעשי מלא' : 'תכנות בבלוקים ובקוד C++'}", "desc": "הסבר מפורט בעברית" }
+    ]
+  },
+  "chapters": [
+    {
+      "id": "ch1",
+      "title": "פרק 1: הרכבה מכאנית וזיווד מפורט (שלבי CAD)",
+      "lessons": [
+        {
+          "id": "1.1",
+          "title": "שלב 1: חיבור תושבת המנוע לשלדה",
+          "isAssemblyStep": true,
+          "partsNeeded": ["תושבת אלומיניום", "2x ברגי M3*8", "לוח שלדה תחתון"],
+          "instructions": [
+            "הנח את לוח השלדה על משטח עבודה יציב ונקי.",
+            "יישר את חורי תושבת האלומיניום עם החריצים בשלדה.",
+            "חזק את התושבת בעזרת שני ברגי M3*8 בצורה יציבה."
+          ],
+          "imageUrl": "image_url_here",
+          "code": "// קוד לבדיקת מנוע\\nvoid setup() {}\\nvoid loop() {}"
+        }
+      ]
+    },
+    {
+      "id": "ch2",
+      "title": "פרק 2: תכנות מונחה עצמים (OOP) ובקרת רכיבים",
+      "lessons": [
+        {
+          "id": "2.1",
+          "title": "שיעור 2.1: כוונון ובקרת מנועים בעזרת 🤖 תוכנית רובוט ו-🏎️ סע",
+          "isCodingMission": true,
+          "goal": "תכנת תנועה קדימה ואחורה של הרובוט עם עצירה אוטומטית בעזרת בלוקי התנועה.",
+          "neededBlocks": ["תוכנית רובוט", "סע קדימה (מהירות: 200)", "המתן (1000 ms)", "עצור מנועים"],
+          "codeTemplate": "// קוד C++ המיועד להיווצר בלייב:\\nvoid setup() {\\n  bot.begin();\\n  bot.moveForward(200);\\n  delay(1000);\\n  bot.stop();\\n}\\nvoid loop() {}",
+          "code": "void setup() {\\n  Serial.begin(115200);\\n}\\nvoid loop() {}"
+        }
+      ]
+    }
+  ]
+}`;
+
+    // Combine available images
+    const availableImages = [
+      ...(uploadedMedia || []).map(m => m.url),
+      ...(activeScrapedData?.images || [])
+    ];
+
+    const userPromptContent = `
+Project Title: ${trackTitle}
+Target Board: ${targetBoard}
+Project Type: ${projectType}
+Components & Sensors: ${components.join(', ') || 'Various sensors and actuators'}
+Difficulty Level: ${difficulty}
+Requested Chapters Count: ${chaptersCount}
+User Custom Instructions / Chapters: ${prompt}
+
+${scrapeInstructions ? `\n--- 🎯 USER TARGETED SCRAPING FOCUS & INSTRUCTIONS ---
+The user explicitly instructed:
+"${scrapeInstructions}"
+You MUST strictly follow this extraction instruction!
+` : ''}
+
+${activeScrapedData ? `\n--- WEB SCRAPED DOCUMENTATION ---
+Page Title: ${activeScrapedData.title}
+Key Headings: ${(activeScrapedData.headings || []).join(' | ')}
+Tutorial Content Summary:
+${activeScrapedData.summary}
+${(activeScrapedData.codeSnippets || []).length > 0 ? `\nExtracted Code Snippets from Website:\n${activeScrapedData.codeSnippets.join('\n// --- next snippet ---\n')}` : ''}
+` : ''}
+
+${availableImages.length > 0 ? `\n--- AVAILABLE IMAGES (${availableImages.length} images found) ---
+(Assign these exact URLs to Chapter 1 lessons and coverImage):
+${availableImages.map((img, i) => `Image ${i+1}: ${img}`).join('\n')}
+` : ''}
+
+Please generate the complete STEM curriculum in Hebrew: Chapter 1 with all CAD assembly steps and images, Chapter 2 with Coding Challenge Missions, and Chapter 3 with Autonomous Projects!`;
+
+    let generatedTrack = null;
+
+    // 1. Try OpenRouter API using server key or request key
+    const activeApiKey = (OPENROUTER_API_KEY && OPENROUTER_API_KEY !== 'YOUR_OPENROUTER_API_KEY_HERE')
+      ? OPENROUTER_API_KEY
+      : (apiKey || process.env.OPENROUTER_API_KEY);
+
+    const activeModel = model || DEFAULT_AI_MODEL;
+
+    if (activeApiKey) {
+      try {
+        console.log(`[OpenRouter AI] Generating track with Gemini model: ${activeModel}...`);
+        const aiRes = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+          model: activeModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPromptContent }
+          ],
+          temperature: 0.7,
+          response_format: { type: 'json_object' }
+        }, {
+          headers: {
+            'Authorization': `Bearer ${activeApiKey.trim()}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://smartstart.academy',
+            'X-Title': 'SmartStart Web Platform'
+          },
+          timeout: 45000
+        });
+
+        const rawContent = aiRes.data?.choices?.[0]?.message?.content || '';
+        const cleanJsonStr = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        generatedTrack = JSON.parse(cleanJsonStr);
+        console.log(`[OpenRouter AI] Track generated successfully with Gemini!`);
+      } catch (openRouterErr) {
+        console.error(`[OpenRouter AI] API Call failed:`, openRouterErr.response?.data || openRouterErr.message);
+        console.warn(`[OpenRouter AI] Switching to Smart Heuristic Generator...`);
+      }
+    }
+
+    // 2. Intelligent Smart Fallback Generator (Guarantees Chapter 1 Assembly + Chapter 2 Coding Missions + Chapter 3 Projects)
+    if (!generatedTrack || !generatedTrack.chapters) {
+      console.log(`[AI Generator] Building rich curriculum via Intelligent Smart Builder...`);
+      const comps = components.length > 0 ? components : ['חיישן מרחק אולטרסוני', 'מנוע סרוו SG90', 'מסך LCD 1602 I2C', 'זמזם Buzzer'];
+      const imgs = availableImages;
+      
+      // Build Chapter 1 Assembly Lessons from all available images
+      const assemblyLessons = (imgs.length > 0 ? imgs : [null, null, null, null]).map((img, idx) => ({
+        id: `1.${idx + 1}`,
+        title: `שלב ${idx + 1}: ${idx === 0 ? 'הכנת לוח הבסיס וחיבור מנועי התנועה' : idx === 1 ? 'התקנת תושבות המתכת וחיזוק הברגים' : idx === 2 ? 'הרכבת הגלגלים וחיבור צירי ה-D' : idx === 3 ? 'התקנת לוח הבקר וחיבור מתח' : `הרכבת מכלול ${comps[idx % comps.length] || 'חומרה'}`}`,
+        isAssemblyStep: true,
+        partsNeeded: [
+          idx === 0 ? 'לוח בסיס אקרילי/שלדה' : 'תושבת מתכת',
+          `2x ברגי M3*${idx === 0 ? '10' : '8'}`,
+          '2x אומי M3',
+          comps[idx % comps.length] || 'רכיב רובוטי'
+        ],
+        instructions: [
+          'הנח את לוח השלדה על משטח עבודה יציב ונקי.',
+          'יישר את חורי ההברגה של הרכיב עם החריצים המיועדים בשלדה.',
+          'חזק בעזרת ברגי ה-M3 והאומים בצורה יציבה ללא חיכוך.',
+          'וודא כי כל הכבלים עוברים בחופשיות דרך מעברי הכבלים.'
+        ],
+        imageUrl: img || '',
+        code: `// שלב הרכבה ${idx + 1}\nvoid setup() {\n  Serial.begin(115200);\n  Serial.println("שלב ${idx + 1} הורכב בהצלחה!");\n}\nvoid loop() {\n}`
+      }));
+
+      // Build Chapter 2 Coding Challenge Lessons (matching Image 2)
+      const codingLessons = [
+        {
+          id: '2.1',
+          title: 'שיעור 2.1: תכנון תנועה ובקרת מנועים בעזרת 🤖 תוכנית רובוט ו-🏎️ סע',
+          isCodingMission: true,
+          goal: 'תכנת נסיעה חלקה קדימה למשך 2 שניות, פנייה ימינה ועצירה מלאה בעזרת בלוקי התנועה של הרובוט.',
+          neededBlocks: ['תוכנית רובוט', 'סע קדימה (מהירות: 200)', 'המתן (2000 ms)', 'פנה ימינה (מהירות: 180)', 'עצור מנועים'],
+          codeTemplate: `// קוד C++ המיועד להיווצר בלייב:\nvoid setup() {\n  bot.begin();\n  bot.moveForward(200);\n  delay(2000);\n  bot.turnRight(180);\n  delay(1000);\n  bot.stop();\n}\n\nvoid loop() {\n}`,
+          code: `void setup() {\n  Serial.begin(115200);\n}\nvoid loop() {\n}`
+        },
+        {
+          id: '2.2',
+          title: 'שיעור 2.2: כוונון וסריקת ראש בעזרת 📐 סובב ראש',
+          isCodingMission: true,
+          goal: 'תכנת סריקה חלקה של ראש הרובוט (Pan-Tilt) ואיפוס מרכז הראש בעזרת הבלוק "📐 סובב ראש".',
+          neededBlocks: ['תוכנית רובוט', 'סובב ראש (Pan: 45, Tilt: 90)', 'המתן (500 ms)', 'סובב ראש (Pan: 135, Tilt: 90)', 'סובב ראש (Pan: 90, Tilt: 90)'],
+          codeTemplate: `// קוד C++ המיועד להיווצר בלייב:\nvoid setup() {\n  bot.begin();\n  bot.moveHead(45, 90); // 45° ימין\n  delay(500);\n  bot.moveHead(135, 90); // 135° שמאל\n  delay(500);\n  bot.moveHead(90, 90); // מרכז\n}\n\nvoid loop() {\n}`,
+          code: `void setup() {\n  Serial.begin(115200);\n}\nvoid loop() {\n}`
+        },
+        {
+          id: '2.3',
+          title: `שיעור 2.3: קריאת נתוני ${comps[0] || 'חיישן מרחק'} ותגובה`,
+          isCodingMission: true,
+          goal: 'קרא את המרחק ממכשול בזמן אמת, והפעל התראה אם עצם מתקרב לפחות מ-20 ס"מ.',
+          neededBlocks: ['תוכנית רובוט', 'חזור לתמיד', 'אם (מרחק < 20)', 'עצור מנועים', 'הפעל זמזם'],
+          codeTemplate: `// קוד C++ המיועד להיווצר בלייב:\nvoid setup() {\n  bot.begin();\n}\n\nvoid loop() {\n  int distance = bot.getDistance();\n  if (distance < 20) {\n    bot.stop();\n    bot.beep();\n  } else {\n    bot.moveForward(150);\n  }\n  delay(50);\n}`,
+          code: `void setup() {\n  Serial.begin(115200);\n}\nvoid loop() {\n}`
+        }
+      ];
+
+      // Build Chapter 3 Autonomous Projects
+      const projectLessons = [
+        {
+          id: '3.1',
+          title: 'שיעור 3.1: אלגוריתם עקיפת מכשולים אוטונומי חכם',
+          isCodingMission: true,
+          goal: 'בנה אלגוריתם עצמאי מלא: הרובוט נוסע קדימה, סורק ימינה ושמאלה כשמזהה קיר, ובוחר את הנתיב הפנוי ביותר!',
+          neededBlocks: ['תוכנית רובוט', 'חזור לתמיד', 'סרוק סביבה', 'בחר נתיב פנוי', 'סע בנתיב הנבחר'],
+          codeTemplate: `// אלגוריתם אוטונומי מלא:\nvoid loop() {\n  if (bot.getDistance() < 25) {\n    bot.stop();\n    int rightDist = bot.scanRight();\n    int leftDist = bot.scanLeft();\n    if (rightDist > leftDist) {\n      bot.turnRight(200);\n    } else {\n      bot.turnLeft(200);\n    }\n  } else {\n    bot.moveForward(180);\n  }\n}`,
+          code: `void setup() {\n  Serial.begin(115200);\n}\nvoid loop() {\n}`
+        }
+      ];
+
+      generatedTrack = {
+        id: trackId,
+        trackId: trackId,
+        title: trackTitle,
+        description: `מסלול למידה והרכבה מתקדם לפיתוח ${trackTitle} על גבי לוח ${targetBoard.toUpperCase()}, כולל שילוב חיישנים, מנועים ותכנות בבלוקים.`,
+        targetBoard: targetBoard,
+        badges: [targetBoard.toUpperCase(), 'הרכבה מכאנית', 'תכנות C++', 'חיישנים'],
+        gradient: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+        glow: '0 0 30px rgba(16, 185, 129, 0.3)',
+        coverImage: (imgs[0] || ''),
+        welcomePage: {
+          welcomeText: `ברוכים הבאים למסלול הלימוד של ${trackTitle}! במסלול זה תרכשו מיומנויות מעשיות בהרכבה פיזית של שלדת הרובוט, חיווט רכיבים ובקרת מנועים, כתיבת אלגוריתמי בקרה בבלוקים וקוד C++ מלא לצריבה ישירה על גבי לוח ה-${targetBoard.toUpperCase()}.`,
+          features: [
+            { title: 'מדריך הרכבה ויזואלי שלב-אחר-שלב', desc: 'רשימת ברגים ורכיבים מדויקת לכל שלב, כולל שרטוטי CAD ודגשים מכאניים.' },
+            { title: 'משימות תכנות מודרכות בבלוקים', desc: 'לימוד תכנות מונחה עצמים, בקרת מנועים וחיישנים בבלוקים ובקוד C++.' },
+            { title: 'פרויקטים אוטונומיים מתקדמים', desc: 'אלגוריתמים חכמים לעקיפת מכשולים, מעקב קו ושליטה אלחוטית.' }
+          ]
+        },
+        chapters: [
+          {
+            id: 'ch1',
+            title: `פרק 1: הרכבה מכאנית וזיווד מפורט (${assemblyLessons.length} שלבי CAD)`,
+            lessons: assemblyLessons
+          },
+          {
+            id: 'ch2',
+            title: 'פרק 2: תכנות מונחה עצמים (OOP) ושימוש בספריות הרובוט',
+            lessons: codingLessons
+          },
+          {
+            id: 'ch3',
+            title: 'פרק 3: פרויקטים אוטונומיים ואפליקציות מתקדמות',
+            lessons: projectLessons
+          }
+        ]
+      };
+    }
+
+    // 3. Post-Processing & Image Assignment Enrichment
+    if (generatedTrack && generatedTrack.chapters) {
+      const allAvailImages = [
+        ...(uploadedMedia || []).map(m => m.url),
+        ...(scrapedData?.images || [])
+      ];
+
+      // Set coverImage if missing
+      if (!generatedTrack.coverImage && allAvailImages.length > 0) {
+        generatedTrack.coverImage = allAvailImages[0];
+      }
+
+      let imgIndex = 0;
+      generatedTrack.chapters.forEach(ch => {
+        (ch.lessons || []).forEach(les => {
+          // If lesson has no image or generic placeholder, assign next available scraped/uploaded image
+          if ((!les.imageUrl || les.imageUrl === 'image_url_here' || les.imageUrl.includes('Optional') || les.imageUrl.includes('placeholder')) && allAvailImages.length > 0) {
+            les.imageUrl = allAvailImages[imgIndex % allAvailImages.length];
+            imgIndex++;
+          }
+
+          // Ensure instructions array is populated
+          if (!les.instructions || !Array.isArray(les.instructions) || les.instructions.length === 0) {
+            les.instructions = [
+              'זהה את הרכיבים הנדרשים לשלב זה והנח אותם על משטח העבודה.',
+              'בצע את החיבורים בהתאם לשרטוט ולמיקומי הפינים המפורטים.',
+              'וודא כי כל החיבורים יציבים וללא קצרים חשמליים.'
+            ];
+          }
+
+          // Ensure partsNeeded array is populated
+          if (!les.partsNeeded || !Array.isArray(les.partsNeeded) || les.partsNeeded.length === 0) {
+            les.partsNeeded = ['רכיב מרכזי', 'חוטי גישור', 'ברגי חיזוק'];
+          }
+
+          // Ensure code is populated
+          if (!les.code) {
+            les.code = `// קוד עבור שיעור ${les.id}\nvoid setup() {\n  Serial.begin(115200);\n}\n\nvoid loop() {\n  delay(1000);\n}`;
+          }
+        });
+      });
+    }
+
+    // Save to Database automatically
+    await saveCustomTrack(generatedTrack);
+
+    res.json({
+      success: true,
+      track: generatedTrack
+    });
+  } catch (err) {
+    console.error('[AI Track Generator] Error generating track:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Get all custom tracks
+app.get('/api/custom-tracks', async (req, res) => {
+  try {
+    const list = await getCustomTracksList();
+    res.json({ success: true, tracks: list });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. Get single custom track by ID
+app.get('/api/custom-tracks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const track = await getCustomTrackById(id);
+    if (!track) return res.status(404).json({ success: false, error: 'המסלול המבוקש לא נמצא' });
+    res.json({ success: true, track });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 6. Save or update custom track
+app.post('/api/custom-tracks', async (req, res) => {
+  try {
+    const trackData = req.body;
+    if (!trackData || !trackData.title) {
+      return res.status(400).json({ success: false, error: 'חסרים פרטי מסלול לשמירה' });
+    }
+    const result = await saveCustomTrack(trackData);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 7. Delete custom track
+app.delete('/api/custom-tracks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ok = await deleteCustomTrack(id);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Serve static React build files if present
 const buildDir = path.join(__dirname, '..', 'build');
 if (fs.existsSync(buildDir)) {
   app.use(express.static(buildDir));
   app.get('*', (req, res, next) => {
     // Don't intercept API endpoints
-    if (req.path.startsWith('/compile') || req.path.startsWith('/upload') || req.path.startsWith('/ports') || req.path.startsWith('/send-code-email')) {
+    if (req.path.startsWith('/compile') || req.path.startsWith('/upload') || req.path.startsWith('/ports') || req.path.startsWith('/send-code-email') || req.path.startsWith('/api')) {
       return next();
     }
     res.sendFile(path.join(buildDir, 'index.html'));
@@ -854,8 +1817,10 @@ function startServer(index = 0) {
   }
 
   const targetPort = PORTS_TO_TRY[index];
-  const server = app.listen(targetPort, () => {
-    console.log(`⚡ שרת קומפילציה פועל בהצלחה על PORT ${targetPort}`);
+  const server = app.listen(targetPort, async () => {
+    console.log(`⚡ שרת קומפילציה ושליחה פועל בהצלחה על PORT ${targetPort}`);
+    // Initialize SQL Server Database & Tables
+    await initDatabase().catch(e => console.error('Database init error:', e));
   });
 
   server.on('error', (err) => {

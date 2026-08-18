@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "fullName": "המורה שמעון",
+    "username": "shimon",
+    "password": "123"
+  },
+  {
+    "id": 1787057239713,
+    "fullName": "שמעון יעיש",
+    "username": "shimon1351992",
+    "password": "1234",
+    "email": "shimon1351992@gmail.com",
+    "createdAt": "2026-08-18T12:47:19.713Z"
+  }
+]

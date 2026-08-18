@@ -1,1 +1,6 @@
+/api/*  https://small-robot.onrender.com/api/:splat  200!
+/compile/*  https://small-robot.onrender.com/compile/:splat  200!
+/upload/*  https://small-robot.onrender.com/upload/:splat  200!
+/ports  https://small-robot.onrender.com/ports  200!
+/send-code-email  https://small-robot.onrender.com/send-code-email  200!
 /*    /index.html    200
